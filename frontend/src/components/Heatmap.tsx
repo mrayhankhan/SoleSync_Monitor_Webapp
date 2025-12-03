@@ -14,7 +14,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
     // Refs for smooth animation
     const currentSensors = useRef<number[]>([0, 0, 0, 0, 0, 0]);
     const targetSensors = useRef<number[]>([0, 0, 0, 0, 0, 0]);
-    const animationFrameId = useRef<number>();
+    const animationFrameId = useRef<number>(0);
 
     // Update target values when new sample arrives
     useEffect(() => {
