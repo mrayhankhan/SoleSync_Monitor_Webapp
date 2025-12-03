@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node src/server.ts",
-    "dev": "nodemon src/server.ts",
+    "start": "node dist/server.js",
+    "dev": "nodemon src/server.js",
     "build": "tsc",
     "simulate": "ts-node src/simulate_device.ts"
   },
