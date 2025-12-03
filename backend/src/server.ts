@@ -77,6 +77,10 @@ app.get('/api/session/:id/data', async (req, res) => {
     res.json({ samples });
 });
 
+app.get('/', (req, res) => {
+    res.send('SoleSync Backend is running 🚀');
+});
+
 app.get('/health', (req, res) => {
     res.send('SoleSync Backend is running');
 });
