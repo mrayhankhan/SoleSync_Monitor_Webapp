@@ -26,6 +26,22 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+import { startSimulation } from './simulator';
+
+// ... imports
+
+// Helper to process CSV data (reused by Socket and Simulator)
+async function processRawCSV(csv: string, sessionId: string) {
+    try {
+        const samples = parseCsvChunk(csv, sessionId);
+        const processedSamples = processSamples(samples);
+        await storeSamples(samples);
+        io.emit('sampleBatch', { samples: processedSamples });
+    } catch (err) {
+        console.error('Error processing CSV:', err);
+    }
+}
+
 // WebSocket connection
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
@@ -36,24 +52,16 @@ io.on('connection', (socket) => {
 
     // Handle raw CSV data from gateway
     socket.on('rawCSV', async (data: { csv: string, gatewayId: string, sessionId: string }) => {
-        try {
-            const samples = parseCsvChunk(data.csv, data.sessionId);
-
-            // Process samples (AHRS, Steps)
-            const processedSamples = processSamples(samples);
-
-            // Store samples (raw + processed info if schema supports, or just raw for now)
-            // For MVP, we store raw samples. If we want to store processed, we need to update schema.
-            // Let's store raw samples as per plan.
-            await storeSamples(samples);
-
-            // Broadcast processed samples to frontend
-            io.emit('sampleBatch', { samples: processedSamples });
-        } catch (err) {
-            console.error('Error processing CSV:', err);
-        }
+        await processRawCSV(data.csv, data.sessionId);
     });
 });
+
+// Start Internal Simulation if enabled
+if (process.env.ENABLE_SIMULATION === 'true') {
+    startSimulation((csv, gatewayId, sessionId) => {
+        processRawCSV(csv, sessionId);
+    });
+}
 
 // REST API
 app.post('/api/session/start', async (req, res) => {
