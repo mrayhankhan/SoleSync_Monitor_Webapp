@@ -10,6 +10,7 @@ export const Dashboard: React.FC = () => {
     const [lastRightTime, setLastRightTime] = useState<number>(0);
     const [now, setNow] = useState<number>(Date.now());
     const [isPaused, setIsPaused] = useState(false);
+    const [isSimulating, setIsSimulating] = useState(false);
 
     // BLE State
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
@@ -41,8 +42,13 @@ export const Dashboard: React.FC = () => {
             setSamples(prev => [...prev, ...newSamples].slice(-100));
         });
 
+        socket.on('simulationStatus', (data: { running: boolean }) => {
+            setIsSimulating(data.running);
+        });
+
         return () => {
             socket.off('sampleBatch');
+            socket.off('simulationStatus');
         };
     }, [socket, isPaused]);
 
@@ -184,6 +190,14 @@ export const Dashboard: React.FC = () => {
         </div>
     );
 
+    const toggleSimulation = () => {
+        if (isSimulating) {
+            socket?.emit('stopSimulation');
+        } else {
+            socket?.emit('startSimulation');
+        }
+    };
+
     return (
         <div className="p-6 min-h-screen w-full bg-gray-900 text-white box-border">
             {/* Top Bar */}
@@ -209,6 +223,8 @@ export const Dashboard: React.FC = () => {
                         isBleConnected={!!rightDevice}
                     />
 
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
                     <button
                         onClick={() => setIsPaused(!isPaused)}
                         className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors ${isPaused ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-white'}`}
@@ -216,19 +232,11 @@ export const Dashboard: React.FC = () => {
                         {isPaused ? 'Resume' : 'Pause'}
                     </button>
 
-                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
-
                     <button
-                        onClick={() => socket?.emit('startSimulation')}
-                        className="px-4 py-1 rounded-lg font-medium text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                        onClick={toggleSimulation}
+                        className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors ${isSimulating ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
                     >
-                        Start Sim
-                    </button>
-                    <button
-                        onClick={() => socket?.emit('stopSimulation')}
-                        className="px-4 py-1 rounded-lg font-medium text-sm bg-red-600 hover:bg-red-700 text-white transition-colors"
-                    >
-                        Stop Sim
+                        {isSimulating ? 'Stop Sim' : 'Start Sim'}
                     </button>
                 </div>
             </div>

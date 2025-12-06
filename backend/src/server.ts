@@ -61,11 +61,13 @@ io.on('connection', (socket) => {
         startSimulation((csv, gatewayId, sessionId) => {
             processRawCSV(csv, sessionId);
         });
+        io.emit('simulationStatus', { running: true });
     });
 
     socket.on('stopSimulation', () => {
         console.log('Received stopSimulation command');
         stopSimulation();
+        io.emit('simulationStatus', { running: false });
     });
 });
 
