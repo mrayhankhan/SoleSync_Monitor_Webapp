@@ -20,8 +20,8 @@ const ShoeModel: React.FC<{ side: 'left' | 'right' }> = ({ side }) => {
     return (
         <primitive
             object={clone}
-            scale={[side === 'left' ? 1 : -1, 1, 1]} // Mirror for right foot
-            rotation={[0, side === 'left' ? -Math.PI / 2 : Math.PI / 2, 0]} // Rotate to face forward
+            scale={[side === 'left' ? -1 : 1, 1, 1]} // Mirror for left foot (assuming model is right)
+            rotation={[0, side === 'left' ? Math.PI / 2 : -Math.PI / 2, 0]} // Rotate to face forward
         />
     );
 };
