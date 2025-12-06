@@ -195,6 +195,8 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
                                 Place shoe flat.
                                 <br />
                                 Rotate it <b>90° to the LEFT</b> (Counter-Clockwise).
+                                <br />
+                                <span className="text-sm text-gray-500">(Rotation around Vertical / Z axis)</span>
                             </p>
                         </div>
                     )}
@@ -207,6 +209,8 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
                                 Keep heel on ground.
                                 <br />
                                 Lift the <b>Toe UP 90°</b> (Vertical).
+                                <br />
+                                <span className="text-sm text-gray-500">(Rotation around Lateral / Y axis)</span>
                             </p>
                         </div>
                     )}
@@ -219,6 +223,8 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
                                 Keep flat.
                                 <br />
                                 Roll the shoe <b>90° to the RIGHT</b>.
+                                <br />
+                                <span className="text-sm text-gray-500">(Rotation around Forward / X axis)</span>
                             </p>
                         </div>
                     )}
