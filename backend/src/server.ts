@@ -26,7 +26,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-import { startSimulation } from './simulator';
+import { startSimulation, stopSimulation } from './simulator';
 
 // ... imports
 
@@ -54,14 +54,27 @@ io.on('connection', (socket) => {
     socket.on('rawCSV', async (data: { csv: string, gatewayId: string, sessionId: string }) => {
         await processRawCSV(data.csv, data.sessionId);
     });
+
+    // Handle Simulation Control
+    socket.on('startSimulation', () => {
+        console.log('Received startSimulation command');
+        startSimulation((csv, gatewayId, sessionId) => {
+            processRawCSV(csv, sessionId);
+        });
+    });
+
+    socket.on('stopSimulation', () => {
+        console.log('Received stopSimulation command');
+        stopSimulation();
+    });
 });
 
-// Start Internal Simulation if enabled
-if (process.env.ENABLE_SIMULATION === 'true') {
-    startSimulation((csv, gatewayId, sessionId) => {
-        processRawCSV(csv, sessionId);
-    });
-}
+// Start Internal Simulation if enabled (DISABLED by default now, controlled via UI)
+// if (process.env.ENABLE_SIMULATION === 'true') {
+//     startSimulation((csv, gatewayId, sessionId) => {
+//         processRawCSV(csv, sessionId);
+//     });
+// }
 
 // REST API
 app.post('/api/session/start', async (req, res) => {

@@ -215,6 +215,21 @@ export const Dashboard: React.FC = () => {
                     >
                         {isPaused ? 'Resume' : 'Pause'}
                     </button>
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
+                    <button
+                        onClick={() => socket?.emit('startSimulation')}
+                        className="px-4 py-1 rounded-lg font-medium text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                    >
+                        Start Sim
+                    </button>
+                    <button
+                        onClick={() => socket?.emit('stopSimulation')}
+                        className="px-4 py-1 rounded-lg font-medium text-sm bg-red-600 hover:bg-red-700 text-white transition-colors"
+                    >
+                        Stop Sim
+                    </button>
                 </div>
             </div>
 

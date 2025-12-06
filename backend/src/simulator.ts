@@ -1,11 +1,18 @@
+let simulationInterval: NodeJS.Timeout | null = null;
+
 export function startSimulation(onData: (csvChunk: string, gatewayId: string, sessionId: string) => void) {
+    if (simulationInterval) {
+        console.log('Simulation already running');
+        return;
+    }
+
     const sessionId = 'sim_' + Date.now();
     const gatewayId = 'sim_gateway_01';
     let t = 0;
 
     console.log('Starting internal simulation...');
 
-    setInterval(() => {
+    simulationInterval = setInterval(() => {
         const now = Date.now();
         // Simulate Left Foot
         const leftRow = generateRow(now, 'left', t);
@@ -17,6 +24,14 @@ export function startSimulation(onData: (csvChunk: string, gatewayId: string, se
         onData(csvChunk, gatewayId, sessionId);
         t += 0.05; // Time step
     }, 50); // 20Hz
+}
+
+export function stopSimulation() {
+    if (simulationInterval) {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        console.log('Simulation stopped');
+    }
 }
 
 function generateRow(timestamp: number, foot: 'left' | 'right', t: number): string {
