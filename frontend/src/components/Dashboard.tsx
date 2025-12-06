@@ -131,8 +131,12 @@ export const Dashboard: React.FC = () => {
     };
 
     // Check connection status (timeout after 2 seconds)
-    const isLeftActive = now - lastLeftTime < 2000 && lastLeftTime > 0;
-    const isRightActive = now - lastRightTime < 2000 && lastRightTime > 0;
+    // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
+    const hasRecentLeftData = now - lastLeftTime < 2000 && lastLeftTime > 0;
+    const hasRecentRightData = now - lastRightTime < 2000 && lastRightTime > 0;
+
+    const isLeftActive = hasRecentLeftData && (!!leftDevice || isSimulating);
+    const isRightActive = hasRecentRightData && (!!rightDevice || isSimulating);
 
     // Get latest samples for display
     const latestLeft = samples.filter(s => s.foot === 'left').pop();
@@ -170,25 +174,38 @@ export const Dashboard: React.FC = () => {
         );
     };
 
-    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => (
-        <div className="flex items-center space-x-2">
-            <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${connected ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-red-900/30 text-red-400 border-red-800'}`}>
-                <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                {label}: {connected ? 'Active' : 'Inactive'}
+    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => {
+        let statusText = 'Disconnected';
+        let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
+        let dotColor = 'bg-red-500';
+
+        if (isBleConnected) {
+            statusText = 'BLE Connected';
+            statusColor = 'bg-green-900/30 text-green-400 border-green-800';
+            dotColor = 'bg-green-500';
+        } else if (connected && isSimulating) {
+            statusText = 'Simulating';
+            statusColor = 'bg-blue-900/30 text-blue-400 border-blue-800';
+            dotColor = 'bg-blue-500';
+        }
+
+        return (
+            <div className="flex items-center space-x-2">
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
+                    <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
+                    {label}: {statusText}
+                </div>
+                {!isBleConnected && (
+                    <button
+                        onClick={onConnect}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                    >
+                        Connect BLE
+                    </button>
+                )}
             </div>
-            {!isBleConnected && (
-                <button
-                    onClick={onConnect}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                >
-                    Connect BLE
-                </button>
-            )}
-            {isBleConnected && (
-                <span className="text-xs text-blue-400 border border-blue-900 bg-blue-900/20 px-2 py-1 rounded">BLE Linked</span>
-            )}
-        </div>
-    );
+        );
+    };
 
     const toggleSimulation = () => {
         if (isSimulating) {
