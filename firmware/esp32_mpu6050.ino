@@ -74,6 +74,12 @@ void setup() {
   Serial.println("Initializing MPU6050...");
   imu.initialize();
 
+  // Explicitly set ranges to match our scaling factors
+  // Gyro: +/- 250 deg/s -> 131 LSB/deg/s
+  imu.setFullScaleGyroRange(MPU6050_GYRO_FS_250);
+  // Accel: +/- 2g -> 16384 LSB/g
+  imu.setFullScaleAccelRange(MPU6050_ACCEL_FS_2);
+
   if (imu.testConnection()) {
     Serial.println("MPU6050 connection successful");
   } else {
