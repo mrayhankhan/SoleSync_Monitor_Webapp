@@ -194,11 +194,16 @@ export const Dashboard: React.FC = () => {
                     yaw: euler.heading,
                     pitch: euler.pitch,
                     roll: euler.roll,
-                    // Remap Body Frame (X=Fwd, Y=Right, Z=Up) to Three.js Frame (X=Right, Y=Up, Z=Back)
-                    // Body Pitch (Y) -> ThreeJS Pitch (X)
-                    // Body Yaw (Z) -> ThreeJS Yaw (Y)
-                    // Body Roll (X) -> ThreeJS Roll (Z)
-                    quaternion: { w: q.w, x: q.y, y: q.z, z: q.x }
+                    // Remap Body Frame (X=Fwd, Y=Right, Z=Up) to Three.js Frame
+                    // Accounting for Model Base Rotation (-90 deg Y for Right Shoe):
+                    // Model X (Pitch) aligns with World -Z.
+                    // Model Z (Roll) aligns with World X.
+                    // Model Y (Yaw) aligns with World Y.
+                    // Mapping:
+                    // Body Pitch (Y) -> Model Pitch (X) -> World -Z (so z = -q.y)
+                    // Body Roll (X) -> Model Roll (Z) -> World X (so x = q.x)
+                    // Body Yaw (Z) -> Model Yaw (Y) -> World Y (so y = q.z)
+                    quaternion: { w: q.w, x: q.x, y: q.z, z: -q.y }
                 },
                 isStep: false,
                 stepCount: 0,
