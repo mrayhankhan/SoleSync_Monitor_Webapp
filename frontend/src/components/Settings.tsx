@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useSettings } from '../context/SettingsContext';
-import { Upload, RotateCcw } from 'lucide-react';
+import { Upload, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Settings: React.FC = () => {
     const {
@@ -55,7 +56,12 @@ export const Settings: React.FC = () => {
 
     return (
         <div className="p-6 h-full overflow-auto text-white">
-            <h2 className="text-3xl font-bold mb-6">Settings</h2>
+            <div className="flex items-center mb-6">
+                <Link to="/" className="mr-4 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
+                    <ArrowLeft size={24} />
+                </Link>
+                <h2 className="text-3xl font-bold">Settings</h2>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Configuration Panel */}
@@ -97,8 +103,8 @@ export const Settings: React.FC = () => {
                             <button
                                 onClick={() => setSelectedSide('left')}
                                 className={`flex-1 py-2 rounded-lg font-medium transition-colors ${selectedSide === 'left'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                                     }`}
                             >
                                 Left Foot
@@ -106,8 +112,8 @@ export const Settings: React.FC = () => {
                             <button
                                 onClick={() => setSelectedSide('right')}
                                 className={`flex-1 py-2 rounded-lg font-medium transition-colors ${selectedSide === 'right'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                                     }`}
                             >
                                 Right Foot
@@ -156,8 +162,8 @@ export const Settings: React.FC = () => {
                             <div
                                 key={index}
                                 className={`absolute w-8 h-8 -ml-4 -mt-4 rounded-full flex items-center justify-center text-xs font-bold cursor-move transition-transform hover:scale-110 ${draggingIndex === index
-                                        ? 'bg-blue-500 text-white z-20 scale-110 ring-4 ring-blue-500/30'
-                                        : 'bg-gray-700 text-gray-200 border border-gray-500 z-10'
+                                    ? 'bg-blue-500 text-white z-20 scale-110 ring-4 ring-blue-500/30'
+                                    : 'bg-gray-700 text-gray-200 border border-gray-500 z-10'
                                     }`}
                                 style={{
                                     left: `${pos.x * 100}%`,

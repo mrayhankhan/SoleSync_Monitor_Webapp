@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { FootViewer } from './FootViewer';
 import { Heatmap } from './Heatmap';
+import { Link } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
     const { isConnected, socket } = useSocket();
@@ -216,7 +218,7 @@ export const Dashboard: React.FC = () => {
             {/* Top Bar */}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Live Monitor</h2>
-                <div className="flex items-center space-x-4 mr-16">
+                <div className="flex items-center space-x-4">
                     {/* Backend Status */}
                     <div className={`flex items-center px-3 py-1 rounded-full text-sm ${isConnected ? 'bg-blue-900/30 text-blue-300 border border-blue-800' : 'bg-gray-800 text-gray-400'}`}>
                         <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-blue-500' : 'bg-gray-500'}`} />
@@ -244,6 +246,16 @@ export const Dashboard: React.FC = () => {
                     >
                         {isSimulating ? 'Stop Sim' : 'Start Sim'}
                     </button>
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
+                    <Link
+                        to="/settings"
+                        className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
+                        title="Settings"
+                    >
+                        <Settings size={20} />
+                    </Link>
                 </div>
             </div>
 
