@@ -170,6 +170,10 @@ export const Dashboard: React.FC = () => {
                     <div>Accel Z: {data.accel.z.toFixed(2)}</div>
                     <div>Gyro Z: {data.gyro.z.toFixed(2)}</div>
                 </div>
+                {/* Debug: Show Calibration Offset */}
+                <div className="text-[10px] text-gray-500 mt-1">
+                    Offset: W:{calibrationOffsets[side].w.toFixed(2)} X:{calibrationOffsets[side].x.toFixed(2)} Y:{calibrationOffsets[side].y.toFixed(2)} Z:{calibrationOffsets[side].z.toFixed(2)}
+                </div>
             </div>
         );
     };
