@@ -18,16 +18,18 @@ export const Dashboard: React.FC = () => {
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
     const [rightDevice, setRightDevice] = useState<any | null>(null);
 
-    // AHRS Filter Ref
-    const madgwickRef = useRef<any>(null);
+    // AHRS Filter Refs
+    const leftMadgwickRef = useRef<any>(null);
+    const rightMadgwickRef = useRef<any>(null);
 
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
 
     useEffect(() => {
-        // Initialize Madgwick filter
+        // Initialize Madgwick filters
         // Sample period 20ms (50Hz), Beta 0.1
-        madgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
+        leftMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
+        rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
     }, []);
 
     useEffect(() => {
@@ -115,15 +117,20 @@ export const Dashboard: React.FC = () => {
             const heel = dataView.getUint16(34, true);
 
             // Update AHRS
-            if (madgwickRef.current) {
-                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g, just needs to be consistent direction)
-                // MPU6050 raw gyro is degrees/sec -> convert to radians
+            // Update AHRS
+            const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
+
+            if (filter) {
+                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g)
                 const degToRad = Math.PI / 180;
-                madgwickRef.current.update(gx * degToRad, gy * degToRad, gz * degToRad, ax, ay, az);
+                filter.update(gx * degToRad, gy * degToRad, gz * degToRad, ax, ay, az);
             }
 
-            const q = madgwickRef.current ? madgwickRef.current.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
-            const euler = madgwickRef.current ? madgwickRef.current.getEulerAngles() : { heading: 0, pitch: 0, roll: 0 };
+            const q = filter ? filter.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
+            const euler = filter ? filter.getEulerAngles() : { heading: 0, pitch: 0, roll: 0 };
+
+            // Debug Log
+            console.log(`[${side}] Q:`, q, " Euler:", euler);
 
             const sample = {
                 timestamp: Date.now(),
