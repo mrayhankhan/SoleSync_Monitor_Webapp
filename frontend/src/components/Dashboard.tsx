@@ -18,6 +18,12 @@ export const Dashboard: React.FC = () => {
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
     const [rightDevice, setRightDevice] = useState<any | null>(null);
 
+    // Calibration State
+    const [calibrationOffsets, setCalibrationOffsets] = useState<{ left: any, right: any }>({
+        left: { w: 1, x: 0, y: 0, z: 0 },
+        right: { w: 1, x: 0, y: 0, z: 0 }
+    });
+
     // AHRS Filter Refs
     const leftMadgwickRef = useRef<any>(null);
     const rightMadgwickRef = useRef<any>(null);
@@ -31,6 +37,133 @@ export const Dashboard: React.FC = () => {
         leftMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
         rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
     }, []);
+
+    // ... (existing code) ...
+
+    const calibrate = (side: 'left' | 'right') => {
+        const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
+        if (filter) {
+            const q = filter.getQuaternion();
+            // Store conjugate (inverse) as offset
+            // Conjugate of unit quaternion (w, x, y, z) is (w, -x, -y, -z)
+            setCalibrationOffsets(prev => ({
+                ...prev,
+                [side]: { w: q.w, x: -q.x, y: -q.y, z: -q.z }
+            }));
+            console.log(`[${side}] Calibrated! Offset:`, { w: q.w, x: -q.x, y: -q.y, z: -q.z });
+        }
+    };
+
+    const handleBleData = (dataView: DataView, side: 'left' | 'right', deviceId: string) => {
+        // Parse struct (Little Endian)
+        // struct SensorData { float ax, ay, az, gx, gy, gz; uint16_t fsr[5]; uint16_t heel; }
+
+        try {
+            const ax = dataView.getFloat32(0, true);
+            const ay = dataView.getFloat32(4, true);
+            const az = dataView.getFloat32(8, true);
+            const gx = dataView.getFloat32(12, true);
+            const gy = dataView.getFloat32(16, true);
+            const gz = dataView.getFloat32(20, true);
+
+            const fsr = [
+                dataView.getUint16(24, true),
+                dataView.getUint16(26, true),
+                dataView.getUint16(28, true),
+                dataView.getUint16(30, true),
+                dataView.getUint16(32, true)
+            ];
+            const heel = dataView.getUint16(34, true);
+
+            // Update AHRS
+            const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
+
+            if (filter) {
+                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g)
+                const degToRad = Math.PI / 180;
+                filter.update(gx * degToRad, gy * degToRad, gz * degToRad, ax, ay, az);
+            }
+
+            let q = filter ? filter.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
+
+            // Apply Calibration Offset: Q_final = Q_offset * Q_current
+            const offset = side === 'left' ? calibrationOffsets.left : calibrationOffsets.right;
+            if (offset) {
+                // Quaternion multiplication
+                const q_off = offset;
+                const q_curr = q;
+
+                q = {
+                    w: q_off.w * q_curr.w - q_off.x * q_curr.x - q_off.y * q_curr.y - q_off.z * q_curr.z,
+                    x: q_off.w * q_curr.x + q_off.x * q_curr.w + q_off.y * q_curr.z - q_off.z * q_curr.y,
+                    y: q_off.w * q_curr.y - q_off.x * q_curr.z + q_off.y * q_curr.w + q_off.z * q_curr.x,
+                    z: q_off.w * q_curr.z + q_off.x * q_curr.y - q_off.y * q_curr.x + q_off.z * q_curr.w
+                };
+            }
+
+            const euler = filter ? filter.getEulerAngles() : { heading: 0, pitch: 0, roll: 0 }; // Note: Euler angles won't reflect calibration directly here unless re-calculated from Q
+
+            // Debug Log
+            // console.log(`[${side}] Q:`, q, " Euler:", euler);
+
+            const sample = {
+                timestamp: Date.now(),
+                deviceId: deviceId,
+                foot: side,
+                accel: { x: ax, y: ay, z: az },
+                gyro: { x: gx, y: gy, z: gz },
+                fsr: fsr,
+                heelRaw: heel,
+                orientation: {
+                    yaw: euler.heading,
+                    pitch: euler.pitch,
+                    roll: euler.roll,
+                    quaternion: { w: q.w, x: q.x, y: q.y, z: q.z }
+                },
+                isStep: false,
+                stepCount: 0,
+                gaitPhase: 'stance'
+            };
+
+            setSamples(prev => [...prev, sample].slice(-100));
+            if (side === 'left') setLastLeftTime(Date.now());
+            else setLastRightTime(Date.now());
+
+        } catch (e) {
+            console.error("Error parsing BLE data", e);
+        }
+    };
+
+    // ... (rest of component) ...
+
+    const renderSensorData = (data: any, title: string, side: 'left' | 'right') => {
+        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
+        return (
+            <div className="text-xs font-mono text-gray-300 space-y-1">
+                <div className="flex justify-between items-center mb-1">
+                    <div className="font-bold text-gray-400">{title}</div>
+                    <button
+                        onClick={() => calibrate(side)}
+                        className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded transition-colors"
+                    >
+                        Calibrate
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4">
+                    <div>Accel X: {data.accel.x.toFixed(2)}</div>
+                    <div>Gyro X: {data.gyro.x.toFixed(2)}</div>
+                    <div>Accel Y: {data.accel.y.toFixed(2)}</div>
+                    <div>Gyro Y: {data.gyro.y.toFixed(2)}</div>
+                    <div>Accel Z: {data.accel.z.toFixed(2)}</div>
+                    <div>Gyro Z: {data.gyro.z.toFixed(2)}</div>
+                </div>
+            </div>
+        );
+    };
+
+    // ... (in return statement) ...
+
+    // ...
 
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
@@ -95,70 +228,7 @@ export const Dashboard: React.FC = () => {
         }
     };
 
-    const handleBleData = (dataView: DataView, side: 'left' | 'right', deviceId: string) => {
-        // Parse struct (Little Endian)
-        // struct SensorData { float ax, ay, az, gx, gy, gz; uint16_t fsr[5]; uint16_t heel; }
 
-        try {
-            const ax = dataView.getFloat32(0, true);
-            const ay = dataView.getFloat32(4, true);
-            const az = dataView.getFloat32(8, true);
-            const gx = dataView.getFloat32(12, true);
-            const gy = dataView.getFloat32(16, true);
-            const gz = dataView.getFloat32(20, true);
-
-            const fsr = [
-                dataView.getUint16(24, true),
-                dataView.getUint16(26, true),
-                dataView.getUint16(28, true),
-                dataView.getUint16(30, true),
-                dataView.getUint16(32, true)
-            ];
-            const heel = dataView.getUint16(34, true);
-
-            // Update AHRS
-            // Update AHRS
-            const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
-
-            if (filter) {
-                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g)
-                const degToRad = Math.PI / 180;
-                filter.update(gx * degToRad, gy * degToRad, gz * degToRad, ax, ay, az);
-            }
-
-            const q = filter ? filter.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
-            const euler = filter ? filter.getEulerAngles() : { heading: 0, pitch: 0, roll: 0 };
-
-            // Debug Log
-            console.log(`[${side}] Q:`, q, " Euler:", euler);
-
-            const sample = {
-                timestamp: Date.now(),
-                deviceId: deviceId,
-                foot: side,
-                accel: { x: ax, y: ay, z: az },
-                gyro: { x: gx, y: gy, z: gz },
-                fsr: fsr,
-                heelRaw: heel,
-                orientation: {
-                    yaw: euler.heading,
-                    pitch: euler.pitch,
-                    roll: euler.roll,
-                    quaternion: { w: q.w, x: q.x, y: q.y, z: q.z }
-                },
-                isStep: false,
-                stepCount: 0,
-                gaitPhase: 'stance'
-            };
-
-            setSamples(prev => [...prev, sample].slice(-100));
-            if (side === 'left') setLastLeftTime(Date.now());
-            else setLastRightTime(Date.now());
-
-        } catch (e) {
-            console.error("Error parsing BLE data", e);
-        }
-    };
 
     // Check connection status (timeout after 2 seconds)
     // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
@@ -172,22 +242,7 @@ export const Dashboard: React.FC = () => {
     const latestLeft = samples.filter(s => s.foot === 'left').pop();
     const latestRight = samples.filter(s => s.foot === 'right').pop();
 
-    const renderSensorData = (data: any, title: string) => {
-        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
-        return (
-            <div className="text-xs font-mono text-gray-300 space-y-1">
-                <div className="font-bold text-gray-400 mb-1">{title}</div>
-                <div className="grid grid-cols-2 gap-x-4">
-                    <div>Accel X: {data.accel.x.toFixed(2)}</div>
-                    <div>Gyro X: {data.gyro.x.toFixed(2)}</div>
-                    <div>Accel Y: {data.accel.y.toFixed(2)}</div>
-                    <div>Gyro Y: {data.gyro.y.toFixed(2)}</div>
-                    <div>Accel Z: {data.accel.z.toFixed(2)}</div>
-                    <div>Gyro Z: {data.gyro.z.toFixed(2)}</div>
-                </div>
-            </div>
-        );
-    };
+
 
     const renderPressureData = (data: any, title: string) => {
         if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
@@ -306,8 +361,8 @@ export const Dashboard: React.FC = () => {
                     {/* Live Data Feed */}
                     <div className="bg-gray-900 rounded p-3">
                         <div className="grid grid-cols-2 gap-4">
-                            {renderSensorData(latestLeft, "Left Foot IMU")}
-                            {renderSensorData(latestRight, "Right Foot IMU")}
+                            {renderSensorData(latestLeft, "Left Foot IMU", 'left')}
+                            {renderSensorData(latestRight, "Right Foot IMU", 'right')}
                         </div>
                     </div>
                 </div>
