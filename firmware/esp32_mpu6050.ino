@@ -1,9 +1,8 @@
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
 #include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
+#include <MPU6050.h>
 #include <Wire.h>
 
 // -------------------------------------------------------------------------
@@ -45,7 +44,8 @@ BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 
-Adafruit_MPU6050 mpu;
+// MPU6050 Object (Address 0x68)
+MPU6050 imu(0x68);
 
 // -------------------------------------------------------------------------
 // BLE CALLBACKS
@@ -69,19 +69,20 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE Work!");
 
-  // Initialize MPU6050
-  if (!mpu.begin()) {
-    Serial.println("Failed to find MPU6050 chip");
-    while (1) {
-      delay(10);
-    }
-  }
-  Serial.println("MPU6050 Found!");
+  // Initialize I2C (SDA=21, SCL=22)
+  Wire.begin(21, 22);
 
-  // MPU6050 Settings
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  // Initialize MPU6050
+  Serial.println("Initializing MPU6050...");
+  imu.initialize();
+
+  if (imu.testConnection()) {
+    Serial.println("MPU6050 connection successful");
+  } else {
+    Serial.println("MPU6050 connection failed");
+    // Don't halt, try to continue or retry?
+    // For now, we proceed but data might be zero.
+  }
 
   // Initialize BLE
   BLEDevice::init(isRightInsole ? "SoleSync Right" : "SoleSync Left");
@@ -120,18 +121,24 @@ void setup() {
 void loop() {
   // notify changed value
   if (deviceConnected) {
-    /* Get new sensor events with the readings */
-    sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
 
-    // Fill Data Struct
-    currentData.ax = a.acceleration.x;
-    currentData.ay = a.acceleration.y;
-    currentData.az = a.acceleration.z;
+    // Read Raw Data
+    imu.getAcceleration(&ax, &ay, &az);
+    imu.getRotation(&gx, &gy, &gz);
 
-    currentData.gx = g.gyro.x;
-    currentData.gy = g.gyro.y;
-    currentData.gz = g.gyro.z;
+    // Convert to physical units (Float)
+    // Default Sensitivity: Accel +/- 2g (16384 LSB/g), Gyro +/- 250 deg/s (131
+    // LSB/deg/s)
+
+    currentData.ax = ax / 16384.0;
+    currentData.ay = ay / 16384.0;
+    currentData.az = az / 16384.0;
+
+    currentData.gx = gx / 131.0;
+    currentData.gy = gy / 131.0;
+    currentData.gz = gz / 131.0;
 
     // Zero out FSRs for now as we only have IMU
     for (int i = 0; i < 5; i++)
