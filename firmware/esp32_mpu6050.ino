@@ -22,7 +22,6 @@ bool isRightInsole = true;
 // -------------------------------------------------------------------------
 // DATA STRUCTURES
 // -------------------------------------------------------------------------
-// Packed struct to send data efficiently (36 bytes)
 struct __attribute__((packed)) SensorData {
   float ax;
   float ay;
@@ -44,7 +43,6 @@ BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 
-// MPU6050 Object (Address 0x68)
 MPU6050 imu(0x68);
 
 // -------------------------------------------------------------------------
@@ -69,7 +67,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE Work!");
 
-  // Initialize I2C (SDA=21, SCL=22)
+  // Initialize I2C
   Wire.begin(21, 22);
 
   // Initialize MPU6050
@@ -80,8 +78,6 @@ void setup() {
     Serial.println("MPU6050 connection successful");
   } else {
     Serial.println("MPU6050 connection failed");
-    // Don't halt, try to continue or retry?
-    // For now, we proceed but data might be zero.
   }
 
   // Initialize BLE
@@ -99,7 +95,6 @@ void setup() {
       CHARACTERISTIC_UUID,
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
 
-  // Create a BLE Descriptor (needed for notifications)
   pCharacteristic->addDescriptor(new BLE2902());
 
   // Start the service
@@ -109,8 +104,7 @@ void setup() {
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(false);
-  pAdvertising->setMinPreferred(
-      0x0); // set value to 0x00 to not advertise this parameter
+  pAdvertising->setMinPreferred(0x0);
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
 }
@@ -119,19 +113,30 @@ void setup() {
 // LOOP
 // -------------------------------------------------------------------------
 void loop() {
-  // notify changed value
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+
+  // Always read sensor data
+  imu.getAcceleration(&ax, &ay, &az);
+  imu.getRotation(&gx, &gy, &gz);
+
+  // Debug Print (Visible in Serial Monitor)
+  Serial.print("Accel: ");
+  Serial.print(ax);
+  Serial.print(", ");
+  Serial.print(ay);
+  Serial.print(", ");
+  Serial.print(az);
+  Serial.print(" | Gyro: ");
+  Serial.print(gx);
+  Serial.print(", ");
+  Serial.print(gy);
+  Serial.print(", ");
+  Serial.println(gz);
+
+  // Only send via BLE if connected
   if (deviceConnected) {
-    int16_t ax, ay, az;
-    int16_t gx, gy, gz;
-
-    // Read Raw Data
-    imu.getAcceleration(&ax, &ay, &az);
-    imu.getRotation(&gx, &gy, &gz);
-
     // Convert to physical units (Float)
-    // Default Sensitivity: Accel +/- 2g (16384 LSB/g), Gyro +/- 250 deg/s (131
-    // LSB/deg/s)
-
     currentData.ax = ax / 16384.0;
     currentData.ay = ay / 16384.0;
     currentData.az = az / 16384.0;
@@ -140,28 +145,27 @@ void loop() {
     currentData.gy = gy / 131.0;
     currentData.gz = gz / 131.0;
 
-    // Zero out FSRs for now as we only have IMU
+    // Zero out FSRs
     for (int i = 0; i < 5; i++)
       currentData.fsr[i] = 0;
     currentData.heel = 0;
 
-    // Set values
+    // Send
     pCharacteristic->setValue((uint8_t *)&currentData, sizeof(SensorData));
     pCharacteristic->notify();
-
-    delay(20); // ~50Hz
   }
 
-  // disconnecting
+  // Handle Disconnect
   if (!deviceConnected && oldDeviceConnected) {
-    delay(500); // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising(); // restart advertising
+    delay(500);
+    pServer->startAdvertising();
     Serial.println("start advertising");
     oldDeviceConnected = deviceConnected;
   }
-  // connecting
+  // Handle Connect
   if (deviceConnected && !oldDeviceConnected) {
-    // do stuff here on connecting
     oldDeviceConnected = deviceConnected;
   }
+
+  delay(100); // Slow down loop to make Serial readable and prevent flooding
 }
