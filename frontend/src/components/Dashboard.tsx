@@ -9,7 +9,6 @@ export const Dashboard: React.FC = () => {
     const [lastLeftTime, setLastLeftTime] = useState<number>(0);
     const [lastRightTime, setLastRightTime] = useState<number>(0);
     const [now, setNow] = useState<number>(Date.now());
-    const [isPaused, setIsPaused] = useState(false);
     const [isSimulating, setIsSimulating] = useState(false);
 
     // BLE State
@@ -29,8 +28,6 @@ export const Dashboard: React.FC = () => {
         if (!socket) return;
 
         socket.on('sampleBatch', (data: { samples: any[] }) => {
-            if (isPaused) return; // Ignore data if paused
-
             const newSamples = data.samples;
             // Update timestamps
             newSamples.forEach(s => {
@@ -50,7 +47,7 @@ export const Dashboard: React.FC = () => {
             socket.off('sampleBatch');
             socket.off('simulationStatus');
         };
-    }, [socket, isPaused]);
+    }, [socket]);
 
     // BLE Connection Handler
     const connectBle = async (side: 'left' | 'right') => {
@@ -66,7 +63,6 @@ export const Dashboard: React.FC = () => {
 
             await char?.startNotifications();
             char?.addEventListener('characteristicvaluechanged', (e: any) => {
-                if (isPaused) return;
                 const value = e.target.value;
                 handleBleData(value, side, device.id);
             });
@@ -260,7 +256,7 @@ export const Dashboard: React.FC = () => {
 
                     {/* 3D Viewer */}
                     <div className="bg-gray-900 rounded-lg relative overflow-hidden mb-4 h-[500px]">
-                        <FootViewer samples={samples} isPaused={isPaused} />
+                        <FootViewer samples={samples} />
                     </div>
 
                     {/* Live Data Feed */}
