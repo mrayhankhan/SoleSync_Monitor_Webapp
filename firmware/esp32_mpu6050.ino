@@ -169,5 +169,5 @@ void loop() {
     oldDeviceConnected = deviceConnected;
   }
 
-  delay(100); // Slow down loop to make Serial readable and prevent flooding
+  delay(20); // Run at ~50Hz to match frontend expectation
 }

@@ -104,7 +104,7 @@ void setup() {
 // -------------------------------------------------------------------------
 void updateSimulation() {
   // Time step
-  t += 0.05; // 50ms
+  t += 0.02; // 20ms
 
   // Phase calculation
   float timeOffset = isRightInsole ? cycleDuration / 2.0f : 0.0f;
@@ -166,7 +166,7 @@ void loop() {
     pCharacteristic->setValue((uint8_t *)&currentData, sizeof(SensorData));
     pCharacteristic->notify();
 
-    delay(50); // 20Hz
+    delay(20); // 50Hz
   }
 
   // disconnecting
