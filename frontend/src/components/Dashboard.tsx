@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { FootViewer } from './FootViewer';
 import { Heatmap } from './Heatmap';
 import { Link } from 'react-router-dom';
 import { Settings } from 'lucide-react';
+import AHRS from 'ahrs';
 
 export const Dashboard: React.FC = () => {
     const { isConnected, socket } = useSocket();
@@ -17,8 +18,17 @@ export const Dashboard: React.FC = () => {
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
     const [rightDevice, setRightDevice] = useState<any | null>(null);
 
+    // AHRS Filter Ref
+    const madgwickRef = useRef<any>(null);
+
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    useEffect(() => {
+        // Initialize Madgwick filter
+        // Sample period 20ms (50Hz), Beta 0.1
+        madgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
+    }, []);
 
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
@@ -104,6 +114,17 @@ export const Dashboard: React.FC = () => {
             ];
             const heel = dataView.getUint16(34, true);
 
+            // Update AHRS
+            if (madgwickRef.current) {
+                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g, just needs to be consistent direction)
+                // MPU6050 raw gyro is degrees/sec -> convert to radians
+                const degToRad = Math.PI / 180;
+                madgwickRef.current.update(gx * degToRad, gy * degToRad, gz * degToRad, ax, ay, az);
+            }
+
+            const q = madgwickRef.current ? madgwickRef.current.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
+            const euler = madgwickRef.current ? madgwickRef.current.getEulerAngles() : { heading: 0, pitch: 0, roll: 0 };
+
             const sample = {
                 timestamp: Date.now(),
                 deviceId: deviceId,
@@ -112,8 +133,12 @@ export const Dashboard: React.FC = () => {
                 gyro: { x: gx, y: gy, z: gz },
                 fsr: fsr,
                 heelRaw: heel,
-                // Mock processed data for now
-                orientation: { yaw: 0, pitch: 0, roll: 0, quaternion: { w: 1, x: 0, y: 0, z: 0 } },
+                orientation: {
+                    yaw: euler.heading,
+                    pitch: euler.pitch,
+                    roll: euler.roll,
+                    quaternion: { w: q.w, x: q.x, y: q.y, z: q.z }
+                },
                 isStep: false,
                 stepCount: 0,
                 gaitPhase: 'stance'
