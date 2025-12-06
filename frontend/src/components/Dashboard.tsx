@@ -194,7 +194,11 @@ export const Dashboard: React.FC = () => {
                     yaw: euler.heading,
                     pitch: euler.pitch,
                     roll: euler.roll,
-                    quaternion: { w: q.w, x: q.x, y: q.y, z: q.z }
+                    // Remap Body Frame (X=Fwd, Y=Right, Z=Up) to Three.js Frame (X=Right, Y=Up, Z=Back)
+                    // Body Pitch (Y) -> ThreeJS Pitch (X)
+                    // Body Yaw (Z) -> ThreeJS Yaw (Y)
+                    // Body Roll (X) -> ThreeJS Roll (Z)
+                    quaternion: { w: q.w, x: q.y, y: q.z, z: q.x }
                 },
                 isStep: false,
                 stepCount: 0,
