@@ -11,6 +11,13 @@ export const Dashboard: React.FC = () => {
     const [now, setNow] = useState<number>(Date.now());
     const [isPaused, setIsPaused] = useState(false);
 
+    // BLE State
+    const [leftDevice, setLeftDevice] = useState<any | null>(null);
+    const [rightDevice, setRightDevice] = useState<any | null>(null);
+
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
         const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -39,9 +46,87 @@ export const Dashboard: React.FC = () => {
         };
     }, [socket, isPaused]);
 
+    // BLE Connection Handler
+    const connectBle = async (side: 'left' | 'right') => {
+        try {
+            // @ts-ignore - navigator.bluetooth is experimental
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ services: [SERVICE_UUID] }]
+            });
+
+            const server = await device.gatt?.connect();
+            const service = await server?.getPrimaryService(SERVICE_UUID);
+            const char = await service?.getCharacteristic(CHARACTERISTIC_UUID);
+
+            await char?.startNotifications();
+            char?.addEventListener('characteristicvaluechanged', (e: any) => {
+                if (isPaused) return;
+                const value = e.target.value;
+                handleBleData(value, side, device.id);
+            });
+
+            if (side === 'left') setLeftDevice(device);
+            else setRightDevice(device);
+
+            device.addEventListener('gattserverdisconnected', () => {
+                if (side === 'left') setLeftDevice(null);
+                else setRightDevice(null);
+            });
+
+        } catch (e) {
+            console.error("BLE Connection failed:", e);
+            alert("Failed to connect: " + e);
+        }
+    };
+
+    const handleBleData = (dataView: DataView, side: 'left' | 'right', deviceId: string) => {
+        // Parse struct (Little Endian)
+        // struct SensorData { float ax, ay, az, gx, gy, gz; uint16_t fsr[5]; uint16_t heel; }
+
+        try {
+            const ax = dataView.getFloat32(0, true);
+            const ay = dataView.getFloat32(4, true);
+            const az = dataView.getFloat32(8, true);
+            const gx = dataView.getFloat32(12, true);
+            const gy = dataView.getFloat32(16, true);
+            const gz = dataView.getFloat32(20, true);
+
+            const fsr = [
+                dataView.getUint16(24, true),
+                dataView.getUint16(26, true),
+                dataView.getUint16(28, true),
+                dataView.getUint16(30, true),
+                dataView.getUint16(32, true)
+            ];
+            const heel = dataView.getUint16(34, true);
+
+            const sample = {
+                timestamp: Date.now(),
+                deviceId: deviceId,
+                foot: side,
+                accel: { x: ax, y: ay, z: az },
+                gyro: { x: gx, y: gy, z: gz },
+                fsr: fsr,
+                heelRaw: heel,
+                // Mock processed data for now
+                orientation: { yaw: 0, pitch: 0, roll: 0, quaternion: { w: 1, x: 0, y: 0, z: 0 } },
+                isStep: false,
+                stepCount: 0,
+                gaitPhase: 'stance'
+            };
+
+            setSamples(prev => [...prev, sample].slice(-100));
+            if (side === 'left') setLastLeftTime(Date.now());
+            else setLastRightTime(Date.now());
+
+        } catch (e) {
+            console.error("Error parsing BLE data", e);
+        }
+    };
+
     // Check connection status (timeout after 2 seconds)
-    const isLeftConnected = now - lastLeftTime < 2000 && lastLeftTime > 0;
-    const isRightConnected = now - lastRightTime < 2000 && lastRightTime > 0;
+    const isLeftActive = now - lastLeftTime < 2000 && lastLeftTime > 0;
+    const isRightActive = now - lastRightTime < 2000 && lastRightTime > 0;
 
     // Get latest samples for display
     const latestLeft = samples.filter(s => s.foot === 'left').pop();
@@ -79,10 +164,23 @@ export const Dashboard: React.FC = () => {
         );
     };
 
-    const StatusBadge = ({ label, connected }: { label: string, connected: boolean }) => (
-        <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${connected ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-red-900/30 text-red-400 border-red-800'}`}>
-            <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-            {label}: {connected ? 'Connected' : 'Disconnected'}
+    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => (
+        <div className="flex items-center space-x-2">
+            <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${connected ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-red-900/30 text-red-400 border-red-800'}`}>
+                <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                {label}: {connected ? 'Active' : 'Inactive'}
+            </div>
+            {!isBleConnected && (
+                <button
+                    onClick={onConnect}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                >
+                    Connect BLE
+                </button>
+            )}
+            {isBleConnected && (
+                <span className="text-xs text-blue-400 border border-blue-900 bg-blue-900/20 px-2 py-1 rounded">BLE Linked</span>
+            )}
         </div>
     );
 
@@ -98,8 +196,18 @@ export const Dashboard: React.FC = () => {
                         Backend
                     </div>
 
-                    <StatusBadge label="Left Shoe" connected={isLeftConnected} />
-                    <StatusBadge label="Right Shoe" connected={isRightConnected} />
+                    <StatusBadge
+                        label="Left Shoe"
+                        connected={isLeftActive}
+                        onConnect={() => connectBle('left')}
+                        isBleConnected={!!leftDevice}
+                    />
+                    <StatusBadge
+                        label="Right Shoe"
+                        connected={isRightActive}
+                        onConnect={() => connectBle('right')}
+                        isBleConnected={!!rightDevice}
+                    />
 
                     <button
                         onClick={() => setIsPaused(!isPaused)}
