@@ -120,6 +120,28 @@ export const Dashboard: React.FC = () => {
             ];
             const heel = dataView.getUint16(34, true);
 
+            // Calculate dt (time since last sample)
+            const now = Date.now();
+            const lastTime = side === 'left' ? lastLeftTime : lastRightTime;
+            let dt = 0.02; // Default 20ms
+
+            if (lastTime > 0) {
+                dt = (now - lastTime) / 1000; // Convert to seconds
+            }
+
+            // Clamp dt to avoid huge jumps on reconnect (max 0.5s)
+            if (dt > 0.5) dt = 0.02;
+
+            // Scale Gyro: The filter expects 50Hz (20ms) updates.
+            // If we are slower (e.g. 100ms), we need to tell the filter to integrate 5x more.
+            // Or, we can just pre-multiply the gyro rate by (dt / expected_dt).
+            // Angle = Rate * dt.
+            // Filter assumes: Angle += Rate * 0.02.
+            // We want: Angle += Rate * dt.
+            // So InputRate * 0.02 = Rate * dt  =>  InputRate = Rate * (dt / 0.02).
+
+            const scaleFactor = dt / 0.02;
+
             // Apply Axis Mapping
             const mapping = axisMappingsRef.current[side];
             const acc = applyAxisMapping({ x: ax, y: ay, z: az }, mapping);
@@ -129,9 +151,15 @@ export const Dashboard: React.FC = () => {
             const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
 
             if (filter) {
-                // Madgwick expects gyro in radians/sec and accel in m/s^2 (or g)
+                // Madgwick expects gyro in radians/sec
                 const degToRad = Math.PI / 180;
-                filter.update(gyro.x * degToRad, gyro.y * degToRad, gyro.z * degToRad, acc.x, acc.y, acc.z);
+
+                // Apply dynamic scaling to gyro
+                const gx_scaled = gyro.x * scaleFactor;
+                const gy_scaled = gyro.y * scaleFactor;
+                const gz_scaled = gyro.z * scaleFactor;
+
+                filter.update(gx_scaled * degToRad, gy_scaled * degToRad, gz_scaled * degToRad, acc.x, acc.y, acc.z);
             }
 
             let q = filter ? filter.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };

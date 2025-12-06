@@ -78,8 +78,15 @@ export const FootViewer: React.FC<{ samples: any[], isPaused?: boolean }> = ({ s
             <Canvas shadows>
                 <PerspectiveCamera makeDefault position={[0, 2, 4]} />
                 <OrbitControls />
-                <ambientLight intensity={0.8} />
-                <pointLight position={[10, 10, 10]} intensity={1} castShadow />
+                <ambientLight intensity={0.5} />
+                <pointLight position={[10, 10, 10]} castShadow />
+
+                {/* Axis Helper: X=Red, Y=Green, Z=Blue */}
+                <axesHelper args={[3]} />
+                <Html position={[3.2, 0, 0]} center><div className="text-red-500 font-bold text-xs">X (Fwd)</div></Html>
+                <Html position={[0, 3.2, 0]} center><div className="text-green-500 font-bold text-xs">Y (Up)</div></Html>
+                <Html position={[0, 0, 3.2]} center><div className="text-blue-500 font-bold text-xs">Z (Right)</div></Html>
+
                 <Environment preset="city" />
 
                 <Suspense fallback={<mesh><boxGeometry /><meshStandardMaterial color="red" /></mesh>}>
