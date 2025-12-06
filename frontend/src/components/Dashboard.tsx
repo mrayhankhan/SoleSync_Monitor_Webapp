@@ -18,8 +18,12 @@ export const Dashboard: React.FC = () => {
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
     const [rightDevice, setRightDevice] = useState<any | null>(null);
 
-    // Calibration State
+    // Calibration State & Ref (to avoid stale closures in BLE callbacks)
     const [calibrationOffsets, setCalibrationOffsets] = useState<{ left: any, right: any }>({
+        left: { w: 1, x: 0, y: 0, z: 0 },
+        right: { w: 1, x: 0, y: 0, z: 0 }
+    });
+    const calibrationOffsetsRef = useRef<{ left: any, right: any }>({
         left: { w: 1, x: 0, y: 0, z: 0 },
         right: { w: 1, x: 0, y: 0, z: 0 }
     });
@@ -44,13 +48,21 @@ export const Dashboard: React.FC = () => {
         const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
         if (filter) {
             const q = filter.getQuaternion();
-            // Store conjugate (inverse) as offset
-            // Conjugate of unit quaternion (w, x, y, z) is (w, -x, -y, -z)
+            const newOffset = { w: q.w, x: -q.x, y: -q.y, z: -q.z };
+
+            // Update State (for UI/Re-render)
             setCalibrationOffsets(prev => ({
                 ...prev,
-                [side]: { w: q.w, x: -q.x, y: -q.y, z: -q.z }
+                [side]: newOffset
             }));
-            console.log(`[${side}] Calibrated! Offset:`, { w: q.w, x: -q.x, y: -q.y, z: -q.z });
+
+            // Update Ref (for BLE Callback)
+            calibrationOffsetsRef.current = {
+                ...calibrationOffsetsRef.current,
+                [side]: newOffset
+            };
+
+            console.log(`[${side}] Calibrated! Offset:`, newOffset);
         }
     };
 
@@ -87,7 +99,8 @@ export const Dashboard: React.FC = () => {
             let q = filter ? filter.getQuaternion() : { w: 1, x: 0, y: 0, z: 0 };
 
             // Apply Calibration Offset: Q_final = Q_offset * Q_current
-            const offset = side === 'left' ? calibrationOffsets.left : calibrationOffsets.right;
+            // USE REF HERE to avoid stale closure
+            const offset = side === 'left' ? calibrationOffsetsRef.current.left : calibrationOffsetsRef.current.right;
             if (offset) {
                 // Quaternion multiplication
                 const q_off = offset;

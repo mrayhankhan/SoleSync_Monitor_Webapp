@@ -1,6 +1,6 @@
 import React, { useRef, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, useGLTF } from '@react-three/drei';
+import { OrbitControls, useGLTF, Environment, Html, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface FootViewerProps {
@@ -83,18 +83,30 @@ export const FootViewer: React.FC<{ samples: any[], isPaused?: boolean }> = ({ s
                 <Environment preset="city" />
 
                 <Suspense fallback={<mesh><boxGeometry /><meshStandardMaterial color="red" /></mesh>}>
-                    {/* Right Foot (Placed on Left Side) */}
-                    <group position={[-0.6, 0, 0]}>
-                        <FootModel orientation={latestRight.orientation || { yaw: 0, pitch: 0, roll: 0 }} side="right" />
+                    {/* Right Foot (Placed on Right Side) */}
+                    <group position={[0.6, 0, 0]}>
+                        <FootModel orientation={latestRight.orientation || { yaw: 0, pitch: 0, roll: 0, quaternion: { w: 1, x: 0, y: 0, z: 0 } }} side="right" />
+                        {/* Label */}
+                        <Html position={[0, -1.5, 0]} center>
+                            <div className="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded whitespace-nowrap">
+                                Right Foot
+                            </div>
+                        </Html>
                         <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                             <planeGeometry args={[1.5, 3]} />
                             <meshBasicMaterial color="#1F2937" wireframe opacity={0.3} transparent />
                         </mesh>
                     </group>
 
-                    {/* Left Foot (Placed on Right Side) */}
-                    <group position={[0.6, 0, 0]}>
-                        <FootModel orientation={latestLeft.orientation || { yaw: 0, pitch: 0, roll: 0 }} side="left" />
+                    {/* Left Foot (Placed on Left Side) */}
+                    <group position={[-0.6, 0, 0]}>
+                        <FootModel orientation={latestLeft.orientation || { yaw: 0, pitch: 0, roll: 0, quaternion: { w: 1, x: 0, y: 0, z: 0 } }} side="left" />
+                        {/* Label */}
+                        <Html position={[0, -1.5, 0]} center>
+                            <div className="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded whitespace-nowrap">
+                                Left Foot
+                            </div>
+                        </Html>
                         <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                             <planeGeometry args={[1.5, 3]} />
                             <meshBasicMaterial color="#1F2937" wireframe opacity={0.3} transparent />
@@ -107,4 +119,3 @@ export const FootViewer: React.FC<{ samples: any[], isPaused?: boolean }> = ({ s
         </div>
     );
 };
-
