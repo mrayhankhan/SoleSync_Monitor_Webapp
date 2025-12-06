@@ -70,3 +70,12 @@ The backend server runs on port 3000. The frontend will automatically connect to
 *   **Frontend:** React, Vite, Tailwind CSS, Three.js (@react-three/fiber), Socket.IO Client
 *   **Backend:** Node.js, Express, Socket.IO
 *   **Firmware:** Arduino (C++) for ESP32
+
+## Troubleshooting
+
+### Web Bluetooth on Brave Browser
+If you are using the Brave browser and see a "Web Bluetooth API globally disabled" error:
+1.  Open a new tab and go to `brave://flags`.
+2.  Search for **"Web Bluetooth"**.
+3.  Change the setting from **Default** (or Disabled) to **Enabled**.
+4.  Relaunch Brave.
