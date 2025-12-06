@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
 interface CalibrationWizardProps {
@@ -66,7 +66,6 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
         // So the axis reading approx -1g is Z. Or +1g is -Z.
         // Let's find the axis with max absolute value.
 
-        const axes = ['x', 'y', 'z'] as const;
         const flatValues = [flat.x, flat.y, flat.z];
 
         let zIndex = 0;
