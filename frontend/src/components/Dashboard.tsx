@@ -305,6 +305,12 @@ export const Dashboard: React.FC = () => {
                 <div className="text-[10px] text-gray-500 mt-1">
                     Offset: W:{calibrationOffsets[side].w.toFixed(2)} X:{calibrationOffsets[side].x.toFixed(2)} Y:{calibrationOffsets[side].y.toFixed(2)} Z:{calibrationOffsets[side].z.toFixed(2)}
                 </div>
+                {/* Debug: Show Axis Mapping */}
+                {axisMappings[side] && (
+                    <div className="text-[10px] text-gray-500">
+                        Map: X:{axisMappings[side]?.x.sign > 0 ? '+' : '-'}{axisMappings[side]?.x.index} Y:{axisMappings[side]?.y.sign > 0 ? '+' : '-'}{axisMappings[side]?.y.index} Z:{axisMappings[side]?.z.sign > 0 ? '+' : '-'}{axisMappings[side]?.z.index}
+                    </div>
+                )}
             </div>
         );
     };
