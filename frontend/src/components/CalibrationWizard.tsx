@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface CalibrationWizardProps {
@@ -16,185 +16,147 @@ export interface AxisMapping {
 }
 
 export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, onClose, side, onComplete, latestSample }) => {
-    const [step, setStep] = useState<number>(0); // 0: Intro, 1: Flat, 2: Toe Down, 3: Complete
-    const [flatAccel, setFlatAccel] = useState<{ x: number, y: number, z: number } | null>(null);
-    const [downAccel, setDownAccel] = useState<{ x: number, y: number, z: number } | null>(null);
+    const [step, setStep] = useState<number>(0); // 0: Intro, 1: Yaw, 2: Pitch, 3: Roll, 4: Complete
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordedSamples, setRecordedSamples] = useState<any[]>([]);
+    const [results, setResults] = useState<{
+        yaw: { axis: 'x' | 'y' | 'z', sign: 1 | -1 } | null,
+        pitch: { axis: 'x' | 'y' | 'z', sign: 1 | -1 } | null,
+        roll: { axis: 'x' | 'y' | 'z', sign: 1 | -1 } | null
+    }>({ yaw: null, pitch: null, roll: null });
     const [error, setError] = useState<string | null>(null);
+
+    // Accumulate samples when recording
+    useEffect(() => {
+        if (isRecording && latestSample) {
+            setRecordedSamples(prev => [...prev, latestSample]);
+        }
+    }, [latestSample, isRecording]);
 
     if (!isOpen) return null;
 
-    const handleNext = () => {
+    const startRecording = () => {
+        setRecordedSamples([]);
+        setIsRecording(true);
         setError(null);
-        if (step === 0) {
-            setStep(1);
-        } else if (step === 1) {
-            // Capture Flat Data (Identifies Z axis)
-            if (!latestSample) {
-                setError("No sensor data received.");
-                return;
-            }
-            setFlatAccel(latestSample.accel);
+    };
+
+    const stopRecording = () => {
+        setIsRecording(false);
+        processStepData();
+    };
+
+    const processStepData = () => {
+        if (recordedSamples.length < 10) {
+            setError("Not enough data. Please move the sensor as instructed.");
+            return;
+        }
+
+        // Integrate Gyro Data
+        let sumX = 0, sumY = 0, sumZ = 0;
+        recordedSamples.forEach(s => {
+            sumX += s.gyro.x;
+            sumY += s.gyro.y;
+            sumZ += s.gyro.z;
+        });
+
+        // Find dominant axis
+        const absX = Math.abs(sumX);
+        const absY = Math.abs(sumY);
+        const absZ = Math.abs(sumZ);
+        const max = Math.max(absX, absY, absZ);
+
+        let axis: 'x' | 'y' | 'z';
+        let sign: 1 | -1;
+
+        if (max === absX) { axis = 'x'; sign = sumX > 0 ? 1 : -1; }
+        else if (max === absY) { axis = 'y'; sign = sumY > 0 ? 1 : -1; }
+        else { axis = 'z'; sign = sumZ > 0 ? 1 : -1; }
+
+        console.log(`Step ${step} Result: Axis ${axis}, Sign ${sign}, Sums: ${sumX.toFixed(0)}, ${sumY.toFixed(0)}, ${sumZ.toFixed(0)}`);
+
+        if (step === 1) { // Yaw (Rotate Right/CW) -> Expected +Z (Up) rotation? 
+            // Wait, standard frame: Z is Up. Rotating CW (looking from top) is NEGATIVE Z?
+            // Right Hand Rule: Thumb Up (Z). Fingers curl CCW.
+            // So CW rotation is NEGATIVE Z.
+            // Let's assume we want to map to Standard Body Frame:
+            // X: Forward
+            // Y: Right
+            // Z: Up
+            // Yaw Right (CW) = Rotation around Z? No, Yaw Left is +Z. Yaw Right is -Z.
+            // Let's ask user to rotate "90 deg Left (CCW)" to match +Z?
+            // Or just "Rotate 90 deg Clockwise" and expect -Z.
+            // Let's stick to "Rotate 90 deg Clockwise" -> Expect -Z.
+            // So if we detect +Axis, then Axis = -Z. If we detect -Axis, then Axis = +Z.
+            // Wait, let's just map the DETECTED axis to the TARGET axis.
+            // Target for Yaw (CW) is -Z (or just Z axis with -1 sign).
+
+            // Actually, let's simplify.
+            // Step 1: Yaw Left (CCW) -> +Z
+            // Step 2: Pitch Up (Toe Up) -> +Y (if Y is Right) -> Pitch Up is rotation around Y?
+            // X is Forward. Y is Right. Z is Up.
+            // Pitch Up (Toe goes up) = Rotation around Y axis (Right).
+            // Right Hand Rule on Y (Thumb Right): Fingers curl Up-Back-Down-Front.
+            // So Pitch Up is +Y rotation.
+            // Step 3: Roll Right -> +X rotation?
+            // X is Forward. Thumb Forward. Fingers curl Right-Down-Left-Up.
+            // So Roll Right is +X rotation.
+
+            // So:
+            // 1. Rotate Left 90° -> +Z
+            // 2. Lift Toe 90° -> +Y
+            // 3. Roll Right 90° -> +X
+
+            setResults(prev => ({ ...prev, yaw: { axis, sign } }));
             setStep(2);
-        } else if (step === 2) {
-            // Capture Toe Down Data (Identifies X axis)
-            if (!latestSample) {
-                setError("No sensor data received.");
-                return;
-            }
-            setDownAccel(latestSample.accel);
+        } else if (step === 2) { // Pitch Up -> +Y
+            setResults(prev => ({ ...prev, pitch: { axis, sign } }));
             setStep(3);
-        } else if (step === 3) {
-            // Calculate and Finish
-            if (flatAccel && downAccel) {
-                const mapping = calculateMapping(flatAccel, downAccel);
-                if (mapping) {
-                    onComplete(mapping);
-                    onClose();
-                } else {
-                    setError("Could not determine orientation. Please try again.");
-                    setStep(1);
-                }
-            }
+        } else if (step === 3) { // Roll Right -> +X
+            setResults(prev => ({ ...prev, roll: { axis, sign } }));
+            setStep(4);
         }
     };
 
-    const calculateMapping = (flat: { x: number, y: number, z: number }, down: { x: number, y: number, z: number }): AxisMapping | null => {
-        // Goal: Map IMU axes to Body Frame: X=Forward, Y=Right, Z=Up
+    const finishCalibration = () => {
+        // We have mappings for X, Y, Z rotations.
+        // Yaw Result maps to Z axis.
+        // Pitch Result maps to Y axis.
+        // Roll Result maps to X axis.
 
-        // 1. Identify Z (Up) Axis from Flat Data
-        // In Flat position, Gravity points DOWN (-Z).
-        // So the axis reading approx -1g is Z. Or +1g is -Z.
-        // Let's find the axis with max absolute value.
+        // results.yaw = { axis: 'y', sign: -1 } means raw -Y is acting as Z.
+        // So Z_out = -Y_raw.
 
-        const flatValues = [flat.x, flat.y, flat.z];
+        // results.pitch = { axis: 'x', sign: 1 } means raw +X is acting as Y.
+        // So Y_out = +X_raw.
 
-        let zIndex = 0;
-        let maxVal = 0;
-        flatValues.forEach((v, i) => {
-            if (Math.abs(v) > Math.abs(maxVal)) {
-                maxVal = v;
-                zIndex = i;
-            }
-        });
+        // results.roll = { axis: 'z', sign: 1 } means raw +Z is acting as X.
+        // So X_out = +Z_raw.
 
-        // If maxVal is positive (e.g. +1g), it means that axis is pointing UP (opposing gravity).
-        // Wait, accelerometer measures "proper acceleration".
-        // Sitting on table: Gravity pulls down. Table pushes up. Accel measures the Upward force (1g).
-        // So the axis pointing UP reads +1g.
-        // So if flatValues[zIndex] > 0, that IMU axis is +Z.
-        // If flatValues[zIndex] < 0, that IMU axis is -Z.
-
-        const zSign = flatValues[zIndex] > 0 ? 1 : -1;
-
-        // 2. Identify X (Forward) Axis from Toe Down Data
-        // In Toe Down position, the "Forward" axis is pointing DOWN.
-        // So the "Forward" axis should read -1g (because Up is +1g).
-        // We look for the axis with max abs value, EXCLUDING the Z axis we just found.
-
-        const downValues = [down.x, down.y, down.z];
-        let xIndex = 0;
-        maxVal = 0;
-
-        downValues.forEach((v, i) => {
-            if (i === zIndex) return; // Ignore Z axis
-            if (Math.abs(v) > Math.abs(maxVal)) {
-                maxVal = v;
-                xIndex = i;
-            }
-        });
-
-        // If maxVal is negative (e.g. -1g), it means that axis is pointing DOWN.
-        // Since we pointed the shoe's Forward axis DOWN, this axis corresponds to Forward.
-        // So if downValues[xIndex] < 0, that IMU axis is +X (Forward).
-        // If downValues[xIndex] > 0, that IMU axis is -X (Backward).
-
-        const xSign = downValues[xIndex] < 0 ? 1 : -1;
-
-        // 3. Identify Y (Right) Axis
-        // Remaining axis index
-        const yIndex = [0, 1, 2].find(i => i !== zIndex && i !== xIndex) as 0 | 1 | 2;
-
-        // Determine sign using Cross Product rule: X cross Y = Z  =>  Y = Z cross X ? No.
-        // Right Hand Rule: X (Thumb) x Y (Index) = Z (Middle).
-        // We know X and Z. We need Y.
-        // We can just arbitrarily assign Y to the remaining axis, but we need the sign.
-        // This is tricky without a third measurement (e.g. on side).
-        // BUT, we can assume a right-handed coordinate system for the IMU.
-        // If we map raw indices to a standard basis, the determinant should be +1.
-
-        // Let's just default Y sign to 1 and let the user flip if needed? 
-        // Or better: Use the cross product of our mapped X and Z to find expected Y.
-
-        // Actually, simpler:
-        // We have mapped X and Z.
-        // Let's say IMU axes are i, j, k.
-        // We found X = s1 * axis(idx1)
-        // We found Z = s2 * axis(idx2)
-        // Y must be s3 * axis(idx3).
-        // To preserve right-handedness: (X x Y) . Z = 1.
-
-        // Let's tentatively set Y sign to 1.
-        let ySign: 1 | -1 = 1;
-
-        // Check chirality
-        // Construct a 3x3 matrix where rows are X, Y, Z vectors in terms of raw IMU axes.
-        // M = [ [x_x, x_y, x_z], [y_x, y_y, y_z], [z_x, z_y, z_z] ]
-        // The determinant should be 1.
-
-        // Vector X in raw frame: has 'xSign' at 'xIndex', 0 elsewhere.
-        // Vector Z in raw frame: has 'zSign' at 'zIndex', 0 elsewhere.
-        // Vector Y in raw frame: has 'ySign' at 'yIndex', 0 elsewhere.
-
-        // Example: X is raw[1] (+), Z is raw[2] (-). Y is raw[0] (?).
-        // X = (0, 1, 0)
-        // Z = (0, 0, -1)
-        // Y = (s, 0, 0)
-        // X x Y = (0, 0, -s).
-        // We want X x Y = Z => (0, 0, -s) = (0, 0, -1) => s = 1.
-
-        // General logic:
-        // Permutation parity:
-        // (0,1,2) -> Even
-        // (0,2,1) -> Odd
-        // ...
-
-        // Let's implement a simple cross product check.
-        // We want Y = Z cross X (Wait, X x Y = Z => - (Y x X) = Z => Y x X = -Z => Y = Z x X ? No.)
-        // X x Y = Z.
-        // Cross product of X and Z?
-        // Z x X = Y.
-        // Let's test: X=(1,0,0), Y=(0,1,0), Z=(0,0,1). Z x X = (0,1,0) = Y. Correct.
-
-        // So Y_vector = Z_vector x X_vector.
-        // Our vectors are in the "Raw IMU Basis".
-        // Z_vector has 0s and one +/-1.
-        // X_vector has 0s and one +/-1.
-
-        const vecZ = [0, 0, 0]; vecZ[zIndex] = zSign;
-        const vecX = [0, 0, 0]; vecX[xIndex] = xSign;
-
-        // Cross product
-        const cross = [
-            vecZ[1] * vecX[2] - vecZ[2] * vecX[1],
-            vecZ[2] * vecX[0] - vecZ[0] * vecX[2],
-            vecZ[0] * vecX[1] - vecZ[1] * vecX[0]
-        ];
-
-        // The non-zero component of 'cross' should be at yIndex.
-        // Its value (+/-1) is the ySign.
-
-        if (cross[yIndex] !== 0) {
-            ySign = cross[yIndex] > 0 ? 1 : -1;
-        } else {
-            console.error("Error in axis calculation");
-            return null;
+        if (!results.yaw || !results.pitch || !results.roll) {
+            setError("Incomplete calibration.");
+            return;
         }
 
-        return {
-            x: { index: xIndex as any, sign: xSign },
-            y: { index: yIndex, sign: ySign },
-            z: { index: zIndex as any, sign: zSign }
+        const mapping: AxisMapping = {
+            x: { index: results.roll.axis === 'x' ? 0 : results.roll.axis === 'y' ? 1 : 2, sign: results.roll.sign },
+            y: { index: results.pitch.axis === 'x' ? 0 : results.pitch.axis === 'y' ? 1 : 2, sign: results.pitch.sign },
+            z: { index: results.yaw.axis === 'x' ? 0 : results.yaw.axis === 'y' ? 1 : 2, sign: results.yaw.sign }
         };
+
+        // TODO: Check orthogonality / duplicates?
+        // If user messed up, we might map X and Y to the same raw axis.
+        // Simple check: indices should be unique.
+        const indices = new Set([mapping.x.index, mapping.y.index, mapping.z.index]);
+        if (indices.size !== 3) {
+            setError("Invalid movements detected. Axes must be unique. Try again.");
+            setStep(1);
+            setResults({ yaw: null, pitch: null, roll: null });
+            return;
+        }
+
+        onComplete(mapping);
+        onClose();
     };
 
     return (
@@ -211,51 +173,76 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
                     {step === 0 && (
                         <div className="text-center">
                             <p className="text-gray-300 mb-4">
-                                This wizard will help you map your sensor's orientation to the shoe.
+                                <b>Movement-Based Calibration</b>
                             </p>
                             <p className="text-gray-400 text-sm">
-                                You will need to place the shoe in two positions.
+                                You will perform 3 rotations to identify the axes.
+                                <br />
+                                1. Rotate Left (Yaw)
+                                <br />
+                                2. Lift Toe (Pitch)
+                                <br />
+                                3. Roll Right (Roll)
                             </p>
                         </div>
                     )}
 
                     {step === 1 && (
                         <div className="text-center">
-                            <div className="text-4xl mb-4">👟 ➡️ 🪑</div>
-                            <h4 className="text-lg font-semibold text-white mb-2">Step 1: Place Flat</h4>
-                            <p className="text-gray-300">
-                                Place the shoe <b>flat on a table</b> or the floor.
+                            <div className="text-4xl mb-4">🔄 ⬅️</div>
+                            <h4 className="text-lg font-semibold text-white mb-2">Step 1: Yaw</h4>
+                            <p className="text-gray-300 mb-4">
+                                Place shoe flat.
                                 <br />
-                                Ensure it is steady.
+                                Rotate it <b>90° to the LEFT</b> (Counter-Clockwise).
                             </p>
-                            {latestSample && (
-                                <div className="mt-4 text-xs font-mono text-gray-500">
-                                    Current: {latestSample.accel.x.toFixed(2)}, {latestSample.accel.y.toFixed(2)}, {latestSample.accel.z.toFixed(2)}
-                                </div>
-                            )}
                         </div>
                     )}
 
                     {step === 2 && (
                         <div className="text-center">
-                            <div className="text-4xl mb-4">👟 ⬇️</div>
-                            <h4 className="text-lg font-semibold text-white mb-2">Step 2: Toe Down</h4>
-                            <p className="text-gray-300">
-                                Hold the shoe vertically with the <b>toe pointing down</b>.
+                            <div className="text-4xl mb-4">👟 ⬆️</div>
+                            <h4 className="text-lg font-semibold text-white mb-2">Step 2: Pitch</h4>
+                            <p className="text-gray-300 mb-4">
+                                Keep heel on ground.
                                 <br />
-                                (Heel up, Toe down)
+                                Lift the <b>Toe UP 90°</b> (Vertical).
                             </p>
-                            {latestSample && (
-                                <div className="mt-4 text-xs font-mono text-gray-500">
-                                    Current: {latestSample.accel.x.toFixed(2)}, {latestSample.accel.y.toFixed(2)}, {latestSample.accel.z.toFixed(2)}
-                                </div>
-                            )}
+                        </div>
+                    )}
+
+                    {step === 3 && (
+                        <div className="text-center">
+                            <div className="text-4xl mb-4">👟 ➡️</div>
+                            <h4 className="text-lg font-semibold text-white mb-2">Step 3: Roll</h4>
+                            <p className="text-gray-300 mb-4">
+                                Keep flat.
+                                <br />
+                                Roll the shoe <b>90° to the RIGHT</b>.
+                            </p>
+                        </div>
+                    )}
+
+                    {step === 4 && (
+                        <div className="text-center">
+                            <div className="text-4xl mb-4">✅</div>
+                            <h4 className="text-lg font-semibold text-white mb-2">Calibration Complete!</h4>
+                            <p className="text-gray-300">
+                                Your sensor axes have been mapped.
+                            </p>
                         </div>
                     )}
 
                     {error && (
                         <div className="mt-4 p-3 bg-red-900/50 border border-red-800 rounded text-red-200 text-sm text-center">
                             {error}
+                        </div>
+                    )}
+
+                    {/* Live Data Debug */}
+                    {latestSample && isRecording && (
+                        <div className="mt-4 text-xs font-mono text-gray-500 text-center">
+                            Recording... Gyro: {latestSample.gyro.x.toFixed(0)}, {latestSample.gyro.y.toFixed(0)}, {latestSample.gyro.z.toFixed(0)}
                         </div>
                     )}
                 </div>
@@ -267,12 +254,33 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({ isOpen, on
                     >
                         Cancel
                     </button>
-                    <button
-                        onClick={handleNext}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                        {step === 0 ? "Start" : step === 2 ? "Finish" : "Next"}
-                    </button>
+
+                    {step === 0 && (
+                        <button
+                            onClick={() => setStep(1)}
+                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                            Start
+                        </button>
+                    )}
+
+                    {(step >= 1 && step <= 3) && (
+                        <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            className={`px-6 py-2 rounded-lg font-medium transition-colors ${isRecording ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                        >
+                            {isRecording ? "Stop Recording" : "Start Recording"}
+                        </button>
+                    )}
+
+                    {step === 4 && (
+                        <button
+                            onClick={finishCalibration}
+                            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                            Apply
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
