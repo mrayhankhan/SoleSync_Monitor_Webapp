@@ -198,7 +198,7 @@ export const Dashboard: React.FC = () => {
                 {!isBleConnected && (
                     <button
                         onClick={onConnect}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                        className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                     >
                         Connect BLE
                     </button>
@@ -241,13 +241,6 @@ export const Dashboard: React.FC = () => {
                     />
 
                     <div className="h-6 w-px bg-gray-700 mx-2"></div>
-
-                    <button
-                        onClick={() => setIsPaused(!isPaused)}
-                        className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors ${isPaused ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-white'}`}
-                    >
-                        {isPaused ? 'Resume' : 'Pause'}
-                    </button>
 
                     <button
                         onClick={toggleSimulation}
