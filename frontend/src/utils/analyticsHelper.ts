@@ -39,11 +39,25 @@ export type AsymmetryMetrics = {
     loadSI: number;
 };
 
+export type OrientationMetrics = {
+    pitchRangeDeg: number;
+    rollRangeDeg: number;
+    pitchStdDeg: number;
+    rollStdDeg: number;
+};
+
+export type Insight = {
+    label: string;
+    severity: 'info' | 'warn';
+};
+
 export type AnalyticsMetrics = {
     basic: BasicMetrics;
     load: LoadMetrics;
     steps: StepEvent[];
     asymmetry?: AsymmetryMetrics;
+    orientation: OrientationMetrics;
+    insights: Insight[];
 };
 
 const CONTACT_THRESH = 50; // tune this
@@ -173,6 +187,66 @@ export function computeLoadMetrics(samples: Sample[]): LoadMetrics {
     return { heelPct, forefootPct, medialPct, lateralPct, dominantRegion };
 }
 
+function std(arr: number[]): number {
+    if (!arr.length) return 0;
+    const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+    const variance =
+        arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+    return Math.sqrt(variance);
+}
+
+export function computeOrientationMetrics(samples: Sample[]): OrientationMetrics {
+    // Assuming accel/gyro can be converted to pitch/roll or are already processed.
+    // Since we don't have explicit pitch/roll in Sample, we'll estimate or mock for now.
+    // Ideally, the backend should provide AHRS data (pitch/roll).
+    // For this implementation, let's assume we can derive rough pitch from accel (static tilt).
+    // Pitch = atan2(accelX, sqrt(accelY^2 + accelZ^2))
+    // Roll = atan2(accelY, accelZ)
+
+    const pitchVals: number[] = [];
+    const rollVals: number[] = [];
+
+    for (const s of samples) {
+        // Simple tilt calculation (radians to degrees)
+        const pitch = Math.atan2(s.accel.x, Math.sqrt(s.accel.y * s.accel.y + s.accel.z * s.accel.z)) * (180 / Math.PI);
+        const roll = Math.atan2(s.accel.y, s.accel.z) * (180 / Math.PI);
+
+        pitchVals.push(pitch);
+        rollVals.push(roll);
+    }
+
+    const pitchMin = Math.min(...pitchVals);
+    const pitchMax = Math.max(...pitchVals);
+    const rollMin = Math.min(...rollVals);
+    const rollMax = Math.max(...rollVals);
+
+    const pitchRangeDeg = pitchMax - pitchMin;
+    const rollRangeDeg = rollMax - rollMin;
+
+    const pitchStdDeg = std(pitchVals);
+    const rollStdDeg = std(rollVals);
+
+    return { pitchRangeDeg, rollRangeDeg, pitchStdDeg, rollStdDeg };
+}
+
+export function deriveInsights(load: LoadMetrics): Insight[] {
+    const insights: Insight[] = [];
+
+    if (load.heelPct > 65) {
+        insights.push({ label: 'Primary heel striker', severity: 'info' });
+    } else if (load.forefootPct > 65) {
+        insights.push({ label: 'Primary forefoot striker', severity: 'info' });
+    }
+
+    if (load.medialPct > 60) {
+        insights.push({ label: 'Medial loading tendency (pronation)', severity: 'warn' });
+    } else if (load.lateralPct > 60) {
+        insights.push({ label: 'Lateral loading tendency (supination)', severity: 'warn' });
+    }
+
+    return insights;
+}
+
 function symmetryIndex(a: number, b: number): number {
     return 100 * (b - a) / ((a + b) / 2 || 1);
 }
@@ -190,7 +264,7 @@ export function computeAsymmetry(
 
     // use total load proxy = heel+forefoot, but we only have %
     // This part of user logic is slightly flawed because % always sums to 100.
-    // But let's follow user instruction: "leftLoad = left.load.heelPct + left.load.forefootPct"
+    // But let's follow user instruction: "const leftLoad = left.load.heelPct + left.load.forefootPct;"
     // Since heelPct + forefootPct is always 100 (or close to it), this SI will likely be 0.
     // Unless "total load proxy" meant raw force? 
     // The user code says: "const leftLoad = left.load.heelPct + left.load.forefootPct;"
@@ -206,11 +280,15 @@ export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
     const steps = detectSteps(samples);
     const basic = computeBasicMetrics(steps);
     const load = computeLoadMetrics(samples);
+    const orientation = computeOrientationMetrics(samples);
+    const insights = deriveInsights(load);
 
     return {
         basic,
         load,
-        steps
+        steps,
+        orientation,
+        insights
     };
 }
 
@@ -222,6 +300,7 @@ export function generateDemoData(): Sample[] {
 
     for (let t = 0; t < duration; t += sampleRate) {
         const time = startTime + t;
+
         // Generate for left foot for now, or mix? Let's do single foot demo.
 
         // Simulate steps: 1 step every 1000ms, stance duration 600ms
@@ -246,13 +325,25 @@ export function generateDemoData(): Sample[] {
             ];
         }
 
+        // Simulate Accel for Orientation (Pitching forward/back during step)
+        // Pitch: -10 to +10 deg
+        const pitchRad = (Math.sin(t / 1000 * 2 * Math.PI) * 10) * (Math.PI / 180);
+        // Roll: -5 to +5 deg
+        const rollRad = (Math.cos(t / 1000 * 2 * Math.PI) * 5) * (Math.PI / 180);
+
+        // Convert pitch/roll back to accel vector (approx)
+        // z = cos(pitch)cos(roll), x = sin(pitch), y = -sin(roll)
+        const az = Math.cos(pitchRad) * Math.cos(rollRad) * 9.8;
+        const ax = Math.sin(pitchRad) * 9.8;
+        const ay = -Math.sin(rollRad) * 9.8;
+
         samples.push({
             time: new Date(time).toISOString(),
             timestamp: time,
             sessionid: 'demo',
             deviceid: 'sim-001',
             foot: 'left',
-            accel: { x: 0, y: 0, z: 9.8 },
+            accel: { x: ax, y: ay, z: az },
             gyro: { x: 0, y: 0, z: 0 },
             fsr: fsr,
             heelraw: 0

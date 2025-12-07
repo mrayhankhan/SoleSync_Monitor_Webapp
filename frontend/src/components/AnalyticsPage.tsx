@@ -6,6 +6,9 @@ import { BasicSummaryCard } from './analytics/BasicSummaryCard';
 import { StepsTimeline } from './analytics/StepsTimeline';
 import { LoadDonuts } from './analytics/LoadDonuts';
 import { AsymmetryCard } from './analytics/AsymmetryCard';
+import { OrientationSummary } from './analytics/OrientationSummary';
+import { OrientationChart } from './analytics/OrientationChart';
+import { InsightsStrip } from './analytics/InsightsStrip';
 
 export function AnalyticsPage() {
     const { sessionId } = useParams();
@@ -114,6 +117,8 @@ export function AnalyticsPage() {
                         <div className="space-y-6">
                             <BasicSummaryCard basic={currentMetrics.basic} />
                             <LoadDonuts load={currentMetrics.load} />
+                            <InsightsStrip insights={currentMetrics.insights} />
+                            <OrientationSummary ori={currentMetrics.orientation} />
                         </div>
 
                         {/* Right Column */}
@@ -124,6 +129,7 @@ export function AnalyticsPage() {
                                     <StepsTimeline samples={currentSamples} steps={currentMetrics.steps} />
                                 </div>
                             </div>
+                            <OrientationChart samples={currentSamples} />
                         </div>
                     </div>
                 ) : (
