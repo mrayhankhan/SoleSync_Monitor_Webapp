@@ -279,7 +279,8 @@ export const Dashboard: React.FC = () => {
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${API_URL}/api/status`);
                 const data = await res.json();
-                setDbConnected(data.dbConnected);
+                // If backend is up, we are "connected" for storage purposes (either DB or Local)
+                setDbConnected(true);
             } catch (e) {
                 console.error("Failed to check backend status", e);
                 setDbConnected(false);
@@ -474,9 +475,9 @@ export const Dashboard: React.FC = () => {
                     </div>
 
                     {!dbConnected && (
-                        <div className="flex items-center px-3 py-1 rounded-full text-sm bg-red-900/30 text-red-300 border border-red-800 animate-pulse" title="Recordings will NOT be saved">
-                            <div className="w-2 h-2 rounded-full mr-2 bg-red-500" />
-                            DB Disconnected
+                        <div className="flex items-center px-3 py-1 rounded-full text-sm bg-yellow-900/30 text-yellow-300 border border-yellow-800" title="Using Local File Store">
+                            <div className="w-2 h-2 rounded-full mr-2 bg-yellow-500" />
+                            Local Store
                         </div>
                     )}
 
