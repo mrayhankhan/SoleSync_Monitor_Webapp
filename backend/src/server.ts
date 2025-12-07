@@ -89,10 +89,7 @@ app.post('/api/session/start', async (req, res) => {
     res.status(201).json({ message: 'Session started' });
 });
 
-app.get('/api/sessions', async (req, res) => {
-    const sessions = await getSessions();
-    res.json(sessions);
-});
+
 
 app.get('/api/session/:id/data', async (req, res) => {
     const { id } = req.params;

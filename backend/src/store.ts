@@ -151,9 +151,6 @@ export async function createSession(sessionId: string, userId: string = 'user1')
     } finally {
         client.release();
     }
-} finally {
-    client.release();
-}
 }
 
 export async function getSessionSummaries() {
