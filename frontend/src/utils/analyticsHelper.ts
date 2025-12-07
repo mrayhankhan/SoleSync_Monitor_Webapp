@@ -191,7 +191,7 @@ export function generateDemoData(): Sample[] {
 
     for (let t = 0; t < duration; t += sampleRate) {
         const time = startTime + t;
-        const isLeft = true; // Generate for left foot for now, or mix? Let's do single foot demo.
+        // Generate for left foot for now, or mix? Let's do single foot demo.
 
         // Simulate steps: 1 step every 1000ms, stance duration 600ms
         const stepCycle = t % 1000;
