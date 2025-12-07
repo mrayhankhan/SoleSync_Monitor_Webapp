@@ -534,6 +534,116 @@ export const Dashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Sensor Diagnostics (Restored) */}
+                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-200 dark:border-zinc-800 shadow-sm">
+                            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Sensor Diagnostics</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Left Foot Data */}
+                                <div className={`p-4 rounded-xl border ${isLeftActive ? 'border-purple-500/30 bg-purple-50 dark:bg-purple-900/10' : 'border-gray-200 dark:border-zinc-800'}`}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="font-medium text-sm">Left Foot</div>
+                                        <div className="flex gap-2">
+                                            {!leftDevice && !isSimulating && (
+                                                <button
+                                                    onClick={() => connectBle('left')}
+                                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                                                >
+                                                    Connect
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => calibrate('left')}
+                                                className="px-2 py-1 bg-gray-200 dark:bg-zinc-800 hover:bg-gray-300 dark:hover:bg-zinc-700 text-xs rounded transition-colors"
+                                            >
+                                                Zero
+                                            </button>
+                                            <button
+                                                onClick={() => setWizardOpen({ side: 'left', isOpen: true })}
+                                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs rounded transition-colors"
+                                            >
+                                                Wizard
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {latestLeft ? (
+                                        <div className="space-y-2 text-xs font-mono text-gray-600 dark:text-zinc-400">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>AX: {latestLeft.accel.x.toFixed(2)}</div>
+                                                <div>GX: {latestLeft.gyro.x.toFixed(2)}</div>
+                                                <div>AY: {latestLeft.accel.y.toFixed(2)}</div>
+                                                <div>GY: {latestLeft.gyro.y.toFixed(2)}</div>
+                                                <div>AZ: {latestLeft.accel.z.toFixed(2)}</div>
+                                                <div>GZ: {latestLeft.gyro.z.toFixed(2)}</div>
+                                            </div>
+                                            <div className="pt-2 border-t border-gray-200 dark:border-zinc-800">
+                                                <div>FSR: {latestLeft.fsr.join(', ')}</div>
+                                            </div>
+                                            {/* Debug Info */}
+                                            <div className="text-[10px] opacity-50 mt-1">
+                                                Offset: {JSON.stringify(calibrationOffsets.left)}
+                                                <br />
+                                                Map: {axisMappings.left ? 'Set' : 'None'}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-gray-400 italic">No data received</div>
+                                    )}
+                                </div>
+
+                                {/* Right Foot Data */}
+                                <div className={`p-4 rounded-xl border ${isRightActive ? 'border-purple-500/30 bg-purple-50 dark:bg-purple-900/10' : 'border-gray-200 dark:border-zinc-800'}`}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="font-medium text-sm">Right Foot</div>
+                                        <div className="flex gap-2">
+                                            {!rightDevice && !isSimulating && (
+                                                <button
+                                                    onClick={() => connectBle('right')}
+                                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                                                >
+                                                    Connect
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => calibrate('right')}
+                                                className="px-2 py-1 bg-gray-200 dark:bg-zinc-800 hover:bg-gray-300 dark:hover:bg-zinc-700 text-xs rounded transition-colors"
+                                            >
+                                                Zero
+                                            </button>
+                                            <button
+                                                onClick={() => setWizardOpen({ side: 'right', isOpen: true })}
+                                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs rounded transition-colors"
+                                            >
+                                                Wizard
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {latestRight ? (
+                                        <div className="space-y-2 text-xs font-mono text-gray-600 dark:text-zinc-400">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>AX: {latestRight.accel.x.toFixed(2)}</div>
+                                                <div>GX: {latestRight.gyro.x.toFixed(2)}</div>
+                                                <div>AY: {latestRight.accel.y.toFixed(2)}</div>
+                                                <div>GY: {latestRight.gyro.y.toFixed(2)}</div>
+                                                <div>AZ: {latestRight.accel.z.toFixed(2)}</div>
+                                                <div>GZ: {latestRight.gyro.z.toFixed(2)}</div>
+                                            </div>
+                                            <div className="pt-2 border-t border-gray-200 dark:border-zinc-800">
+                                                <div>FSR: {latestRight.fsr.join(', ')}</div>
+                                            </div>
+                                            {/* Debug Info */}
+                                            <div className="text-[10px] opacity-50 mt-1">
+                                                Offset: {JSON.stringify(calibrationOffsets.right)}
+                                                <br />
+                                                Map: {axisMappings.right ? 'Set' : 'None'}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-gray-400 italic">No data received</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
