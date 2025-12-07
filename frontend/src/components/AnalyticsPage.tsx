@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { type Sample, type AnalyticsMetrics, computeAnalytics, generateDemoData, computeAsymmetry, type AsymmetryMetrics } from '../utils/analyticsHelper';

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import type { AsymmetryMetrics } from '../../utils/analyticsHelper';
 
 export function AsymmetryCard({ asym }: { asym: AsymmetryMetrics }) {
