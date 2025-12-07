@@ -43,7 +43,6 @@ export const SessionsModal: React.FC<SessionsModalProps> = ({ isOpen, onClose })
     if (!isOpen) return null;
 
     return (
-    return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col border border-gray-200 dark:border-zinc-800 shadow-xl">
                 <div className="p-6 border-b border-gray-200 dark:border-zinc-800 flex justify-between items-center bg-gray-50/50 dark:bg-black/20 rounded-t-2xl">
