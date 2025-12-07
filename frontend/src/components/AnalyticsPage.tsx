@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { type Sample, type AnalyticsMetrics, computeAnalytics } from '../utils/analyticsHelper';
+import { type Sample, type AnalyticsMetrics, computeAnalytics, generateDemoData } from '../utils/analyticsHelper';
 import { BasicSummaryCard } from './analytics/BasicSummaryCard';
 import { StepsTimeline } from './analytics/StepsTimeline';
 
@@ -18,6 +18,15 @@ export const AnalyticsPage: React.FC = () => {
         if (!sessionId) return;
 
         setLoading(true);
+
+        if (sessionId === 'demo') {
+            const data = generateDemoData();
+            setSamples(data);
+            setMetrics(computeAnalytics(data));
+            setLoading(false);
+            return;
+        }
+
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
         fetch(`${API_URL}/api/sessions/${sessionId}/samples?foot=${foot}`)
             .then(res => res.json())

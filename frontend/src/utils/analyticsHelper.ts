@@ -182,3 +182,50 @@ export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
         steps
     };
 }
+
+export function generateDemoData(): Sample[] {
+    const samples: Sample[] = [];
+    const duration = 60000; // 60s
+    const sampleRate = 50; // ms
+    const startTime = Date.now() - duration;
+
+    for (let t = 0; t < duration; t += sampleRate) {
+        const time = startTime + t;
+        const isLeft = true; // Generate for left foot for now, or mix? Let's do single foot demo.
+
+        // Simulate steps: 1 step every 1000ms, stance duration 600ms
+        const stepCycle = t % 1000;
+        const isStance = stepCycle < 600;
+
+        // FSR Pattern (Sine wave during stance)
+        let fsr = [0, 0, 0, 0, 0];
+        if (isStance) {
+            const phase = Math.sin((stepCycle / 600) * Math.PI);
+            const force = phase * 500; // Max 500
+            // Heel strike first, then toe off
+            const heelFactor = stepCycle < 300 ? 1 : 0.2;
+            const toeFactor = stepCycle > 300 ? 1 : 0.2;
+
+            fsr = [
+                force * toeFactor * 0.8, // Meta1
+                force * toeFactor * 0.9, // Meta2
+                force * 0.5,             // Mid
+                force * 0.5,             // LatMid
+                force * heelFactor       // Heel
+            ];
+        }
+
+        samples.push({
+            time: new Date(time).toISOString(),
+            timestamp: time,
+            sessionid: 'demo',
+            deviceid: 'sim-001',
+            foot: 'left',
+            accel: { x: 0, y: 0, z: 9.8 },
+            gyro: { x: 0, y: 0, z: 0 },
+            fsr: fsr,
+            heelraw: 0
+        });
+    }
+    return samples;
+}

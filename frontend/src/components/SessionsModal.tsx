@@ -50,9 +50,20 @@ export const SessionsModal: React.FC<SessionsModalProps> = ({ isOpen, onClose })
                         <Activity className="text-purple-500" />
                         Recordings
                     </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-                        <X size={24} />
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => {
+                                navigate('/analytics/demo');
+                                onClose();
+                            }}
+                            className="px-3 py-1 bg-purple-900/50 hover:bg-purple-800 text-purple-300 text-xs rounded-lg transition-colors border border-purple-700"
+                        >
+                            Try Demo Analytics
+                        </button>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                            <X size={24} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
