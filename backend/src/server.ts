@@ -5,7 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { parseCsvChunk } from './parser';
 import { processSamples } from './analytics';
-import { storeSamples, initDB, createSession, getSessions, getSessionData, getSessionSummaries, deleteSession, getSessionSamples } from './store';
+import { storeSamples, initDB, createSession, getSessions, getSessionData, getSessionSummaries, deleteSession, getSessionSamples, getDbStatus } from './store';
 
 dotenv.config();
 
@@ -121,6 +121,13 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
     res.send('SoleSync Backend is running');
+});
+
+app.get('/api/status', (req, res) => {
+    res.json({
+        backend: true,
+        dbConnected: getDbStatus()
+    });
 });
 
 httpServer.listen(PORT, () => {

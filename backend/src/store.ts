@@ -11,6 +11,10 @@ const pool = new Pool({
 
 let isDbConnected = false;
 
+export function getDbStatus() {
+    return isDbConnected;
+}
+
 export async function initDB() {
     try {
         const client = await pool.connect();

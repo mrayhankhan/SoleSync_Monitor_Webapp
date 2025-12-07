@@ -15,7 +15,9 @@ export const Dashboard: React.FC = () => {
     const [lastLeftTime, setLastLeftTime] = useState<number>(0);
     const [lastRightTime, setLastRightTime] = useState<number>(0);
     const [now, setNow] = useState<number>(Date.now());
+
     const [isSimulating, setIsSimulating] = useState(false);
+    const [dbConnected, setDbConnected] = useState<boolean>(true); // Assume true initially
 
     // BLE State
     const [leftDevice, setLeftDevice] = useState<any | null>(null);
@@ -270,7 +272,26 @@ export const Dashboard: React.FC = () => {
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
         const interval = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(interval);
+
+        // Check DB Status
+        const checkStatus = async () => {
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                const res = await fetch(`${API_URL}/api/status`);
+                const data = await res.json();
+                setDbConnected(data.dbConnected);
+            } catch (e) {
+                console.error("Failed to check backend status", e);
+                setDbConnected(false);
+            }
+        };
+        checkStatus();
+        const statusInterval = setInterval(checkStatus, 10000); // Check every 10s
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(statusInterval);
+        };
     }, []);
 
     useEffect(() => {
@@ -451,6 +472,13 @@ export const Dashboard: React.FC = () => {
                         <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-blue-500' : 'bg-gray-500'}`} />
                         Backend
                     </div>
+
+                    {!dbConnected && (
+                        <div className="flex items-center px-3 py-1 rounded-full text-sm bg-red-900/30 text-red-300 border border-red-800 animate-pulse" title="Recordings will NOT be saved">
+                            <div className="w-2 h-2 rounded-full mr-2 bg-red-500" />
+                            DB Disconnected
+                        </div>
+                    )}
 
                     <StatusBadge
                         label="Left Shoe"
