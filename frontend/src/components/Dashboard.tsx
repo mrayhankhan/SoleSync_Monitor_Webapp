@@ -1,18 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
+import { FootViewer } from './FootViewer';
 import { Heatmap } from './Heatmap';
-import { Settings, Activity, Bluetooth, Wifi, Square, History, Footprints } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 import AHRS from 'ahrs';
 import { CalibrationWizard, type AxisMapping } from './CalibrationWizard';
 import { SessionsModal } from './SessionsModal';
-import { ThemeToggle } from './ThemeToggle';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment } from '@react-three/drei';
-import { Suspense } from 'react';
-import { ShoeModel } from './ShoeModel';
+import { Activity } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-    const { isConnected: isSocketConnected, socket } = useSocket();
+    const { isConnected, socket } = useSocket();
     const [samples, setSamples] = useState<any[]>([]);
     const [lastLeftTime, setLastLeftTime] = useState<number>(0);
     const [lastRightTime, setLastRightTime] = useState<number>(0);
@@ -57,7 +55,6 @@ export const Dashboard: React.FC = () => {
     const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
-    const isBleConnected = !!leftDevice || !!rightDevice;
 
     useEffect(() => {
         let interval: any;
@@ -102,6 +99,17 @@ export const Dashboard: React.FC = () => {
         rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
     }, []);
 
+    const handleWizardComplete = (mapping: AxisMapping) => {
+        const side = wizardOpen.side;
+        setAxisMappings(prev => ({ ...prev, [side]: mapping }));
+        axisMappingsRef.current = { ...axisMappingsRef.current, [side]: mapping };
+        console.log(`[${side}] Axis Mapping Updated:`, mapping);
+
+        // Reset AHRS filter to clear history
+        if (side === 'left') leftMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
+        else rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
+    };
+
     const applyAxisMapping = (raw: { x: number, y: number, z: number }, mapping: AxisMapping | null) => {
         if (!mapping) return raw;
         const values = [raw.x, raw.y, raw.z];
@@ -132,14 +140,6 @@ export const Dashboard: React.FC = () => {
 
             console.log(`[${side}] Calibrated! Offset:`, newOffset);
         }
-    };
-
-    const handleWizardComplete = (mapping: AxisMapping) => {
-        const side = wizardOpen.side;
-        setAxisMappings(prev => ({ ...prev, [side]: mapping }));
-        axisMappingsRef.current[side] = mapping;
-        setWizardOpen({ side: 'left', isOpen: false });
-        console.log(`[${side}] Wizard Complete! Mapping:`, mapping);
     };
 
     const handleBleData = (dataView: DataView, side: 'left' | 'right', deviceId: string) => {
@@ -351,18 +351,6 @@ export const Dashboard: React.FC = () => {
         }
     };
 
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Derived data for visualization
-    // Default to left foot for now, or use whichever is active/selected
-    // For the 3D view and Heatmap, we might want to show both or toggle.
-    // The UI shows a "Left" / "Right" toggle in the heatmap section but it's hardcoded.
-    // Let's use the latest data from either foot for the main view if available.
-
     // Check connection status (timeout after 2 seconds)
     // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
     const hasRecentLeftData = now - lastLeftTime < 2000 && lastLeftTime > 0;
@@ -375,310 +363,227 @@ export const Dashboard: React.FC = () => {
     const latestLeft = samples.filter(s => s.foot === 'left').pop();
     const latestRight = samples.filter(s => s.foot === 'right').pop();
 
-    const activeSide = 'left'; // Default to left for main view for now
-    const activeSample = activeSide === 'left' ? latestLeft : latestRight;
+    const renderPressureData = (data: any, title: string) => {
+        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
+        return (
+            <div className="text-xs font-mono text-gray-300 space-y-1">
+                <div className="font-bold text-gray-400 mb-1">{title}</div>
+                <div className="flex space-x-2">
+                    {data.fsr.map((val: number, i: number) => (
+                        <div key={i} className="bg-gray-700 px-1 rounded">S{i}: {val.toFixed(0)}</div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
 
-    const quaternion = activeSample?.orientation?.quaternion || { w: 1, x: 0, y: 0, z: 0 };
-    const accel = activeSample?.accel || { x: 0, y: 0, z: 0 };
-    const fsrData = activeSample?.fsr || [0, 0, 0, 0, 0];
-
-    return (
-        <div className="min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white p-6 pb-24 transition-colors duration-200">
-            <div className="max-w-4xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
-                            SoleSync Monitor
-                        </h1>
-                        <p className="text-gray-500 dark:text-zinc-400 text-sm">Real-time Gait Analysis System</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${dbConnected
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
-                            }`}>
-                            <div className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                            {dbConnected ? (localStorage.getItem('useLocalStore') === 'true' ? 'Local Store' : 'DB Connected') : 'DB Disconnected'}
-                        </div>
-                        <ThemeToggle />
+    const renderSensorData = (data: any, title: string, side: 'left' | 'right') => {
+        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
+        return (
+            <div className="text-xs font-mono text-gray-300 space-y-1">
+                <div className="flex justify-between items-center mb-1">
+                    <div className="font-bold text-gray-400">{title}</div>
+                    <div className="flex space-x-1">
                         <button
-                            onClick={() => setSessionsModalOpen(true)}
-                            className="p-2 bg-white dark:bg-zinc-900 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors border border-gray-200 dark:border-zinc-800 shadow-sm"
+                            onClick={() => setWizardOpen({ side, isOpen: true })}
+                            className="px-2 py-0.5 bg-purple-700 hover:bg-purple-600 text-white text-[10px] rounded transition-colors"
                         >
-                            <History size={20} className="text-gray-600 dark:text-zinc-400" />
+                            Wizard
                         </button>
-                        <button className="p-2 bg-white dark:bg-zinc-900 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors border border-gray-200 dark:border-zinc-800 shadow-sm">
-                            <Settings size={20} className="text-gray-600 dark:text-zinc-400" />
+                        <button
+                            onClick={() => calibrate(side)}
+                            className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded transition-colors"
+                        >
+                            Zero
                         </button>
                     </div>
                 </div>
+                <div className="grid grid-cols-2 gap-x-4">
+                    <div>Accel X: {data.accel.x.toFixed(2)}</div>
+                    <div>Gyro X: {data.gyro.x.toFixed(2)}</div>
+                    <div>Accel Y: {data.accel.y.toFixed(2)}</div>
+                    <div>Gyro Y: {data.gyro.y.toFixed(2)}</div>
+                    <div>Accel Z: {data.accel.z.toFixed(2)}</div>
+                    <div>Gyro Z: {data.gyro.z.toFixed(2)}</div>
+                </div>
+                {/* Debug: Show Calibration Offset */}
+                <div className="text-[10px] text-gray-500 mt-1">
+                    Offset: W:{calibrationOffsets[side].w.toFixed(2)} X:{calibrationOffsets[side].x.toFixed(2)} Y:{calibrationOffsets[side].y.toFixed(2)} Z:{calibrationOffsets[side].z.toFixed(2)}
+                </div>
+                {/* Debug: Show Axis Mapping */}
+                {axisMappings[side] && (
+                    <div className="text-[10px] text-gray-500">
+                        Map: X:{axisMappings[side]?.x.sign > 0 ? '+' : '-'}{axisMappings[side]?.x.index} Y:{axisMappings[side]?.y.sign > 0 ? '+' : '-'}{axisMappings[side]?.y.index} Z:{axisMappings[side]?.z.sign > 0 ? '+' : '-'}{axisMappings[side]?.z.index}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
-                {/* Main Dashboard Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Left Column: Live Status & Controls */}
-                    <div className="space-y-6">
-                        {/* Connection Card */}
-                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-200 dark:border-zinc-800 shadow-sm">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <Activity className="text-purple-500" />
-                                Live Status
-                            </h2>
+    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => {
+        let statusText = 'Disconnected';
+        let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
+        let dotColor = 'bg-red-500';
 
-                            {/* Device Status Items */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-black/40 rounded-xl border border-gray-100 dark:border-zinc-800/50">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${isBleConnected ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
-                                            <Bluetooth size={18} />
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-medium">ESP32 Device</div>
-                                            <div className="text-xs text-gray-500 dark:text-zinc-500">{isBleConnected ? 'Connected' : 'Disconnected'}</div>
-                                        </div>
-                                    </div>
-                                    {isBleConnected && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
-                                </div>
+        if (isBleConnected) {
+            statusText = 'BLE Connected';
+            statusColor = 'bg-green-900/30 text-green-400 border-green-800';
+            dotColor = 'bg-green-500';
+        } else if (connected && isSimulating) {
+            statusText = 'Simulating';
+            statusColor = 'bg-blue-900/30 text-blue-400 border-blue-800';
+            dotColor = 'bg-blue-500';
+        }
 
-                                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-black/40 rounded-xl border border-gray-100 dark:border-zinc-800/50">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${isSocketConnected ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'}`}>
-                                            <Wifi size={18} />
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-medium">Backend Stream</div>
-                                            <div className="text-xs text-gray-500 dark:text-zinc-500">{isSocketConnected ? 'Active' : 'Connecting...'}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+        return (
+            <div className="flex items-center space-x-2">
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
+                    <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
+                    {label}: {statusText}
+                </div>
+                {!isBleConnected && (
+                    <button
+                        onClick={onConnect}
+                        className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                        Connect BLE
+                    </button>
+                )}
+            </div>
+        );
+    };
 
-                            {/* Recording Controls */}
-                            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-zinc-800">
-                                <div className="mb-4">
-                                    <label className="text-xs uppercase text-gray-400 dark:text-zinc-500 font-semibold mb-2 block">Session ID</label>
-                                    <input
-                                        type="text"
-                                        value={recordingSessionId || ''}
-                                        readOnly
-                                        className="w-full bg-gray-50 dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 transition-colors text-gray-500"
-                                        placeholder="Auto-generated..."
-                                    />
-                                </div>
-                                <button
-                                    onClick={toggleRecording}
-                                    disabled={!isBleConnected && !isSocketConnected}
-                                    className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all ${recordingSessionId
-                                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
-                                        : 'bg-white dark:bg-white text-gray-900 dark:text-black hover:bg-gray-50 dark:hover:bg-gray-200 border border-gray-200 dark:border-transparent'
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                >
-                                    {recordingSessionId ? (
-                                        <>
-                                            <Square size={18} fill="currentColor" />
-                                            Stop Recording ({formatTime(elapsedTime)})
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="w-3 h-3 bg-red-500 rounded-full" />
-                                            Start Recording
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
+    const toggleSimulation = () => {
+        if (isSimulating) {
+            socket?.emit('stopSimulation');
+        } else {
+            socket?.emit('startSimulation');
+        }
+    };
 
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm">
-                                <div className="text-gray-500 dark:text-zinc-500 text-xs mb-1">Step Count</div>
-                                <div className="text-2xl font-bold">{activeSample?.stepCount || 0}</div>
-                            </div>
-                            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm">
-                                <div className="text-gray-500 dark:text-zinc-500 text-xs mb-1">Cadence</div>
-                                <div className="text-2xl font-bold">0 <span className="text-xs font-normal text-gray-400 dark:text-zinc-600">spm</span></div>
-                            </div>
-                        </div>
+    return (
+        <div className="p-6 min-h-screen w-full bg-gray-900 text-white box-border">
+            {/* Top Bar */}
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Live Monitor</h2>
+                <div className="flex items-center space-x-4">
+                    {/* Backend Status */}
+                    <div className={`flex items-center px-3 py-1 rounded-full text-sm ${isConnected ? 'bg-blue-900/30 text-blue-300 border border-blue-800' : 'bg-gray-800 text-gray-400'}`}>
+                        <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-blue-500' : 'bg-gray-500'}`} />
+                        Backend
                     </div>
 
-                    {/* Middle & Right: Visualizations */}
-                    <div className="md:col-span-2 space-y-6">
-                        {/* 3D View */}
-                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-1 border border-gray-200 dark:border-zinc-800 shadow-sm h-[300px] relative overflow-hidden group">
-                            <div className="absolute top-4 left-4 z-10">
-                                <h3 className="text-sm font-semibold bg-white/90 dark:bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-gray-200 dark:border-white/10">3D Motion</h3>
-                            </div>
-                            <Canvas camera={{ position: [3, 2, 3], fov: 50 }}>
-                                <ambientLight intensity={0.5} />
-                                <pointLight position={[10, 10, 10]} />
-                                <Suspense fallback={null}>
-                                    <ShoeModel
-                                        quaternion={quaternion}
-                                        accel={accel}
-                                    />
-                                    <Environment preset="city" />
-                                </Suspense>
-                                <OrbitControls enableZoom={false} />
-                            </Canvas>
+                    {!dbConnected && (
+                        <div className="flex items-center px-3 py-1 rounded-full text-sm bg-yellow-900/30 text-yellow-300 border border-yellow-800" title="Using Local File Store">
+                            <div className="w-2 h-2 rounded-full mr-2 bg-yellow-500" />
+                            Local Store
                         </div>
+                    )}
 
-                        {/* Heatmap */}
-                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-200 dark:border-zinc-800 shadow-sm">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <Footprints className="text-blue-500" size={20} />
-                                    Pressure Distribution
-                                </h3>
-                                <div className="flex gap-2">
-                                    <span className="px-2 py-1 bg-gray-100 dark:bg-zinc-800 rounded text-xs text-gray-500 dark:text-zinc-400">Left</span>
-                                    <span className="px-2 py-1 bg-gray-100 dark:bg-zinc-800 rounded text-xs text-gray-500 dark:text-zinc-400">Right</span>
-                                </div>
-                            </div>
-                            <div className="flex justify-center gap-12">
-                                <Heatmap data={fsrData} />
-                                {/* Placeholder for Right Foot */}
-                                <div className="opacity-30 grayscale">
-                                    <Heatmap data={[0, 0, 0, 0, 0]} />
-                                </div>
-                            </div>
+                    <StatusBadge
+                        label="Left Shoe"
+                        connected={isLeftActive}
+                        onConnect={() => connectBle('left')}
+                        isBleConnected={!!leftDevice}
+                    />
+                    <StatusBadge
+                        label="Right Shoe"
+                        connected={isRightActive}
+                        onConnect={() => connectBle('right')}
+                        isBleConnected={!!rightDevice}
+                    />
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
+                    <button
+                        onClick={toggleSimulation}
+                        className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors ${isSimulating ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+                    >
+                        {isSimulating ? 'Stop Sim' : 'Start Sim'}
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
+                    <button
+                        onClick={toggleRecording}
+                        className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${recordingSessionId ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                    >
+                        <Activity size={16} />
+                        {recordingSessionId ? `Stop (${elapsedTime}s)` : 'Start Rec'}
+                    </button>
+
+                    <button
+                        onClick={() => setSessionsModalOpen(true)}
+                        className="px-4 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium text-sm transition-colors ml-2"
+                    >
+                        View Analytics
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
+                    <Link
+                        to="/settings"
+                        className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
+                        title="Settings"
+                    >
+                        <Settings size={20} />
+                    </Link>
+                </div>
+            </div>
+
+            {/* Split Screen Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Left Panel: IMU / 3D View */}
+                <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 flex flex-col">
+                    <h3 className="text-gray-400 text-sm font-medium mb-4">Motion Tracking (IMU)</h3>
+
+                    {/* 3D Viewer */}
+                    <div className="bg-gray-900 rounded-lg relative overflow-hidden mb-4 h-[500px]">
+                        <FootViewer samples={samples} />
+                    </div>
+
+                    {/* Live Data Feed */}
+                    <div className="bg-gray-900 rounded p-3">
+                        <div className="grid grid-cols-2 gap-4">
+                            {renderSensorData(latestLeft, "Left Foot IMU", 'left')}
+                            {renderSensorData(latestRight, "Right Foot IMU", 'right')}
                         </div>
+                    </div>
+                </div>
 
-                        {/* Sensor Diagnostics (Restored) */}
-                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-200 dark:border-zinc-800 shadow-sm">
-                            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Sensor Diagnostics</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Left Foot Data */}
-                                <div className={`p-4 rounded-xl border ${isLeftActive ? 'border-purple-500/30 bg-purple-50 dark:bg-purple-900/10' : 'border-gray-200 dark:border-zinc-800'}`}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <div className="font-medium text-sm">Left Foot</div>
-                                        <div className="flex gap-2">
-                                            {!leftDevice && !isSimulating && (
-                                                <button
-                                                    onClick={() => connectBle('left')}
-                                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
-                                                >
-                                                    Connect
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => calibrate('left')}
-                                                className="px-2 py-1 bg-gray-200 dark:bg-zinc-800 hover:bg-gray-300 dark:hover:bg-zinc-700 text-xs rounded transition-colors"
-                                            >
-                                                Zero
-                                            </button>
-                                            <button
-                                                onClick={() => setWizardOpen({ side: 'left', isOpen: true })}
-                                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs rounded transition-colors"
-                                            >
-                                                Wizard
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {latestLeft ? (
-                                        <div className="space-y-2 text-xs font-mono text-gray-600 dark:text-zinc-400">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>AX: {latestLeft.accel.x.toFixed(2)}</div>
-                                                <div>GX: {latestLeft.gyro.x.toFixed(2)}</div>
-                                                <div>AY: {latestLeft.accel.y.toFixed(2)}</div>
-                                                <div>GY: {latestLeft.gyro.y.toFixed(2)}</div>
-                                                <div>AZ: {latestLeft.accel.z.toFixed(2)}</div>
-                                                <div>GZ: {latestLeft.gyro.z.toFixed(2)}</div>
-                                            </div>
-                                            <div className="pt-2 border-t border-gray-200 dark:border-zinc-800">
-                                                <div>FSR: {latestLeft.fsr.join(', ')}</div>
-                                            </div>
-                                            {/* Debug Info */}
-                                            <div className="text-[10px] opacity-50 mt-1">
-                                                Offset: {JSON.stringify(calibrationOffsets.left)}
-                                                <br />
-                                                Map: {axisMappings.left ? 'Set' : 'None'}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-xs text-gray-400 italic">No data received</div>
-                                    )}
-                                </div>
+                {/* Right Panel: Pressure Heatmap */}
+                <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 flex flex-col">
+                    <h3 className="text-gray-400 text-sm font-medium mb-4">Pressure Distribution</h3>
 
-                                {/* Right Foot Data */}
-                                <div className={`p-4 rounded-xl border ${isRightActive ? 'border-purple-500/30 bg-purple-50 dark:bg-purple-900/10' : 'border-gray-200 dark:border-zinc-800'}`}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <div className="font-medium text-sm">Right Foot</div>
-                                        <div className="flex gap-2">
-                                            {!rightDevice && !isSimulating && (
-                                                <button
-                                                    onClick={() => connectBle('right')}
-                                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
-                                                >
-                                                    Connect
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => calibrate('right')}
-                                                className="px-2 py-1 bg-gray-200 dark:bg-zinc-800 hover:bg-gray-300 dark:hover:bg-zinc-700 text-xs rounded transition-colors"
-                                            >
-                                                Zero
-                                            </button>
-                                            <button
-                                                onClick={() => setWizardOpen({ side: 'right', isOpen: true })}
-                                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs rounded transition-colors"
-                                            >
-                                                Wizard
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {latestRight ? (
-                                        <div className="space-y-2 text-xs font-mono text-gray-600 dark:text-zinc-400">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>AX: {latestRight.accel.x.toFixed(2)}</div>
-                                                <div>GX: {latestRight.gyro.x.toFixed(2)}</div>
-                                                <div>AY: {latestRight.accel.y.toFixed(2)}</div>
-                                                <div>GY: {latestRight.gyro.y.toFixed(2)}</div>
-                                                <div>AZ: {latestRight.accel.z.toFixed(2)}</div>
-                                                <div>GZ: {latestRight.gyro.z.toFixed(2)}</div>
-                                            </div>
-                                            <div className="pt-2 border-t border-gray-200 dark:border-zinc-800">
-                                                <div>FSR: {latestRight.fsr.join(', ')}</div>
-                                            </div>
-                                            {/* Debug Info */}
-                                            <div className="text-[10px] opacity-50 mt-1">
-                                                Offset: {JSON.stringify(calibrationOffsets.right)}
-                                                <br />
-                                                Map: {axisMappings.right ? 'Set' : 'None'}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-xs text-gray-400 italic">No data received</div>
-                                    )}
-                                </div>
-                            </div>
+                    {/* Heatmaps */}
+                    <div className="bg-gray-900 rounded-lg flex items-center justify-around p-4 mb-4 overflow-auto">
+                        <Heatmap samples={samples} side="left" />
+                        <Heatmap samples={samples} side="right" />
+                    </div>
+
+                    {/* Live Data Feed */}
+                    <div className="bg-gray-900 rounded p-3">
+                        <div className="grid grid-cols-1 gap-4">
+                            {renderPressureData(latestLeft, "Left Foot Pressure")}
+                            {renderPressureData(latestRight, "Right Foot Pressure")}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Sessions Modal */}
-            {
-                sessionsModalOpen && (
-                    <SessionsModal
-                        isOpen={sessionsModalOpen}
-                        onClose={() => setSessionsModalOpen(false)}
-                    />
-                )
-            }
+            <CalibrationWizard
+                isOpen={wizardOpen.isOpen}
+                side={wizardOpen.side}
+                onClose={() => setWizardOpen(prev => ({ ...prev, isOpen: false }))}
+                onComplete={handleWizardComplete}
+                latestSample={wizardOpen.side === 'left' ? latestLeft : latestRight}
+            />
 
-            {/* Calibration Wizard Modal */}
-            {
-                wizardOpen.isOpen && (
-                    <CalibrationWizard
-                        isOpen={wizardOpen.isOpen}
-                        onClose={() => setWizardOpen({ ...wizardOpen, isOpen: false })}
-                        onComplete={handleWizardComplete}
-                        side={wizardOpen.side}
-                        latestSample={wizardOpen.side === 'left' ? latestLeft : latestRight}
-                    />
-                )
-            }
-        </div >
+            <SessionsModal
+                isOpen={sessionsModalOpen}
+                onClose={() => setSessionsModalOpen(false)}
+            />
+        </div>
     );
 };
-

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { type Sample, type AnalyticsMetrics, computeAnalytics, generateDemoData, computeAsymmetry, type AsymmetryMetrics } from '../utils/analyticsHelper';
 import { BasicSummaryCard } from './analytics/BasicSummaryCard';
@@ -12,8 +12,8 @@ import { InsightsStrip } from './analytics/InsightsStrip';
 
 export function AnalyticsPage() {
     const { sessionId } = useParams();
-    // const [searchParams, setSearchParams] = useSearchParams();
-    // const foot = searchParams.get('foot') || 'left'; // 'left' | 'right'
+    const [searchParams, setSearchParams] = useSearchParams();
+    const foot = searchParams.get('foot') || 'left'; // 'left' | 'right'
 
     const [leftSamples, setLeftSamples] = useState<Sample[]>([]);
     const [rightSamples, setRightSamples] = useState<Sample[]>([]);
@@ -71,23 +71,39 @@ export function AnalyticsPage() {
     };
 
     // Derived state for current view
-    // const currentSamples = foot === 'left' ? leftSamples : rightSamples;
-    // const currentMetrics = foot === 'left' ? leftMetrics : rightMetrics;
+    const currentSamples = foot === 'left' ? leftSamples : rightSamples;
+    const currentMetrics = foot === 'left' ? leftMetrics : rightMetrics;
 
     if (loading) return <div className="p-8 text-white">Loading analytics...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white p-6 pb-24 transition-colors duration-200">
-            <div className="max-w-7xl mx-auto space-y-6">
+        <div className="min-h-screen bg-black text-white p-6 pb-24">
+            <div className="max-w-4xl mx-auto space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
-                    <Link to="/" className="p-2 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-full transition-colors text-gray-600 dark:text-zinc-400">
+                    <Link to="/" className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
                         <ArrowLeft size={24} />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent">Session Analytics</h1>
-                        <p className="text-gray-500 dark:text-zinc-400 text-sm">{sessionId}</p>
+                        <h1 className="text-2xl font-bold">Session Analytics</h1>
+                        <p className="text-zinc-400 text-sm">{sessionId}</p>
                     </div>
+                </div>
+
+                {/* Foot Toggle */}
+                <div className="flex bg-zinc-900 p-1 rounded-lg w-fit">
+                    <button
+                        onClick={() => setSearchParams({ foot: 'left' })}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${foot === 'left' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                        Left Foot
+                    </button>
+                    <button
+                        onClick={() => setSearchParams({ foot: 'right' })}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${foot === 'right' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                        Right Foot
+                    </button>
                 </div>
 
                 {/* Asymmetry Card (Visible if both feet have data) */}
@@ -95,63 +111,32 @@ export function AnalyticsPage() {
                     <AsymmetryCard asym={asymmetry} />
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Foot Column */}
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-zinc-800">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <h2 className="text-xl font-semibold">Left Foot</h2>
+                {currentMetrics ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Left Column */}
+                        <div className="space-y-6">
+                            <BasicSummaryCard basic={currentMetrics.basic} />
+                            <LoadDonuts load={currentMetrics.load} />
+                            <InsightsStrip insights={currentMetrics.insights} />
+                            <OrientationSummary ori={currentMetrics.orientation} />
                         </div>
 
-                        {leftMetrics ? (
-                            <>
-                                <BasicSummaryCard basic={leftMetrics.basic} />
-                                <LoadDonuts load={leftMetrics.load} />
-                                <InsightsStrip insights={leftMetrics.insights} />
-                                <OrientationSummary ori={leftMetrics.orientation} />
-                                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-gray-200 dark:border-zinc-800 shadow-sm">
-                                    <h3 className="text-lg font-semibold mb-4">Step Force Timeline</h3>
-                                    <div className="h-48">
-                                        <StepsTimeline samples={leftSamples} steps={leftMetrics.steps} />
-                                    </div>
+                        {/* Right Column */}
+                        <div className="space-y-6">
+                            <div className="bg-zinc-900 rounded-2xl p-4">
+                                <h3 className="text-lg font-semibold mb-4">Step Force Timeline</h3>
+                                <div className="h-64">
+                                    <StepsTimeline samples={currentSamples} steps={currentMetrics.steps} />
                                 </div>
-                                <OrientationChart samples={leftSamples} />
-                            </>
-                        ) : (
-                            <div className="p-8 text-center text-gray-500 dark:text-zinc-500 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 border-dashed">
-                                No data for Left Foot
                             </div>
-                        )}
-                    </div>
-
-                    {/* Right Foot Column */}
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-zinc-800">
-                            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                            <h2 className="text-xl font-semibold">Right Foot</h2>
+                            <OrientationChart samples={currentSamples} />
                         </div>
-
-                        {rightMetrics ? (
-                            <>
-                                <BasicSummaryCard basic={rightMetrics.basic} />
-                                <LoadDonuts load={rightMetrics.load} />
-                                <InsightsStrip insights={rightMetrics.insights} />
-                                <OrientationSummary ori={rightMetrics.orientation} />
-                                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-gray-200 dark:border-zinc-800 shadow-sm">
-                                    <h3 className="text-lg font-semibold mb-4">Step Force Timeline</h3>
-                                    <div className="h-48">
-                                        <StepsTimeline samples={rightSamples} steps={rightMetrics.steps} />
-                                    </div>
-                                </div>
-                                <OrientationChart samples={rightSamples} />
-                            </>
-                        ) : (
-                            <div className="p-8 text-center text-gray-500 dark:text-zinc-500 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 border-dashed">
-                                No data for Right Foot
-                            </div>
-                        )}
                     </div>
-                </div>
+                ) : (
+                    <div className="text-center py-12 text-zinc-500">
+                        No data available for {foot} foot.
+                    </div>
+                )}
             </div>
         </div>
     );

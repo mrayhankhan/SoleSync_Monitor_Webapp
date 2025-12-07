@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
+import type { ProcessedSample } from '../../../backend/src/analytics';
 import { useSettings } from '../context/SettingsContext';
 
 interface HeatmapProps {
-    data: number[];
-    side?: 'left' | 'right';
+    samples: ProcessedSample[];
+    side: 'left' | 'right';
 }
 
-export const Heatmap: React.FC<HeatmapProps> = ({ data, side = 'left' }) => {
+export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { insoleImage, leftSensorPositions, rightSensorPositions } = useSettings();
 
@@ -15,12 +16,19 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, side = 'left' }) => {
     const targetSensors = useRef<number[]>([0, 0, 0, 0, 0]);
     const animationFrameId = useRef<number>(0);
 
-    // Update target values when new data arrives
+    // Update target values when new sample arrives
     useEffect(() => {
-        if (data && data.length === 5) {
-            targetSensors.current = [...data];
+        const latestSample = samples.filter(s => s.foot === side).slice(-1)[0];
+        if (latestSample) {
+            targetSensors.current = [
+                latestSample.fsr[0],
+                latestSample.fsr[1],
+                latestSample.fsr[2],
+                latestSample.fsr[3],
+                latestSample.fsr[4]
+            ];
         }
-    }, [data]);
+    }, [samples, side]);
 
     const sensorPositions = side === 'left' ? leftSensorPositions : rightSensorPositions;
 

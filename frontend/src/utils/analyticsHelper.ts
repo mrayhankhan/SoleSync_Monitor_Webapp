@@ -300,60 +300,53 @@ export function generateDemoData(): Sample[] {
 
     for (let t = 0; t < duration; t += sampleRate) {
         const time = startTime + t;
-        const isoTime = new Date(time).toISOString();
 
-        // Generate for BOTH feet
-        (['left', 'right'] as const).forEach(foot => {
-            // Simulate steps: 1 step every 1000ms, stance duration 600ms
-            // Offset right foot by 500ms for alternating gait
-            const timeOffset = foot === 'right' ? 500 : 0;
-            const stepCycle = (t + timeOffset) % 1000;
-            const isStance = stepCycle < 600;
+        // Generate for left foot for now, or mix? Let's do single foot demo.
 
-            // Asymmetry: Right foot has slightly higher force (+10%)
-            const forceMultiplier = foot === 'right' ? 1.1 : 1.0;
+        // Simulate steps: 1 step every 1000ms, stance duration 600ms
+        const stepCycle = t % 1000;
+        const isStance = stepCycle < 600;
 
-            // FSR Pattern (Sine wave during stance)
-            let fsr = [0, 0, 0, 0, 0];
-            if (isStance) {
-                const phase = Math.sin((stepCycle / 600) * Math.PI);
-                const force = phase * 500 * forceMultiplier; // Max 500 * mult
-                // Heel strike first, then toe off
-                const heelFactor = stepCycle < 300 ? 1 : 0.2;
-                const toeFactor = stepCycle > 300 ? 1 : 0.2;
+        // FSR Pattern (Sine wave during stance)
+        let fsr = [0, 0, 0, 0, 0];
+        if (isStance) {
+            const phase = Math.sin((stepCycle / 600) * Math.PI);
+            const force = phase * 500; // Max 500
+            // Heel strike first, then toe off
+            const heelFactor = stepCycle < 300 ? 1 : 0.2;
+            const toeFactor = stepCycle > 300 ? 1 : 0.2;
 
-                fsr = [
-                    force * toeFactor * 0.8, // Meta1
-                    force * toeFactor * 0.9, // Meta2
-                    force * 0.5,             // Mid
-                    force * 0.5,             // LatMid
-                    force * heelFactor       // Heel
-                ];
-            }
+            fsr = [
+                force * toeFactor * 0.8, // Meta1
+                force * toeFactor * 0.9, // Meta2
+                force * 0.5,             // Mid
+                force * 0.5,             // LatMid
+                force * heelFactor       // Heel
+            ];
+        }
 
-            // Simulate Accel for Orientation (Pitching forward/back during step)
-            // Pitch: -10 to +10 deg
-            const pitchRad = (Math.sin((t + timeOffset) / 1000 * 2 * Math.PI) * 10) * (Math.PI / 180);
-            // Roll: -5 to +5 deg
-            const rollRad = (Math.cos((t + timeOffset) / 1000 * 2 * Math.PI) * 5) * (Math.PI / 180);
+        // Simulate Accel for Orientation (Pitching forward/back during step)
+        // Pitch: -10 to +10 deg
+        const pitchRad = (Math.sin(t / 1000 * 2 * Math.PI) * 10) * (Math.PI / 180);
+        // Roll: -5 to +5 deg
+        const rollRad = (Math.cos(t / 1000 * 2 * Math.PI) * 5) * (Math.PI / 180);
 
-            // Convert pitch/roll back to accel vector (approx)
-            // z = cos(pitch)cos(roll), x = sin(pitch), y = -sin(roll)
-            const az = Math.cos(pitchRad) * Math.cos(rollRad) * 9.8;
-            const ax = Math.sin(pitchRad) * 9.8;
-            const ay = -Math.sin(rollRad) * 9.8;
+        // Convert pitch/roll back to accel vector (approx)
+        // z = cos(pitch)cos(roll), x = sin(pitch), y = -sin(roll)
+        const az = Math.cos(pitchRad) * Math.cos(rollRad) * 9.8;
+        const ax = Math.sin(pitchRad) * 9.8;
+        const ay = -Math.sin(rollRad) * 9.8;
 
-            samples.push({
-                time: isoTime,
-                timestamp: time,
-                sessionid: 'demo',
-                deviceid: foot === 'left' ? 'sim-L' : 'sim-R',
-                foot: foot,
-                accel: { x: ax, y: ay, z: az },
-                gyro: { x: 0, y: 0, z: 0 },
-                fsr: fsr,
-                heelraw: 0
-            });
+        samples.push({
+            time: new Date(time).toISOString(),
+            timestamp: time,
+            sessionid: 'demo',
+            deviceid: 'sim-001',
+            foot: 'left',
+            accel: { x: ax, y: ay, z: az },
+            gyro: { x: 0, y: 0, z: 0 },
+            fsr: fsr,
+            heelraw: 0
         });
     }
     return samples;
