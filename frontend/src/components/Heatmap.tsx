@@ -87,7 +87,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
 
             // 2. Draw Heatmap
             // Low-res internal rendering for pixelated effect
-            const SCALE_FACTOR = 0.125; // 1/8th resolution
+            const SCALE_FACTOR = 0.25; // 1/4th resolution
             const lowW = Math.floor(w * SCALE_FACTOR);
             const lowH = Math.floor(h * SCALE_FACTOR);
 
@@ -182,7 +182,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
                 data[idx] = r;
                 data[idx + 1] = g;
                 data[idx + 2] = b;
-                data[idx + 3] = 255;
+                data[idx + 3] = Math.floor(t * 255);
             }
 
             const offScreen = document.createElement('canvas');
