@@ -303,7 +303,6 @@ export const Dashboard: React.FC = () => {
                     {data.fsr.map((val: number, i: number) => (
                         <div key={i} className="bg-gray-700 px-1 rounded">S{i}: {val.toFixed(0)}</div>
                     ))}
-                    <div className="bg-gray-700 px-1 rounded">Heel: {data.heelRaw.toFixed(0)}</div>
                 </div>
             </div>
         );
