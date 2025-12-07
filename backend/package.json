@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "nodemon --ignore data/ src/server.js",
     "build": "tsc",
     "simulate": "ts-node src/simulate_device.ts"
   },

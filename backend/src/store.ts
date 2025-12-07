@@ -172,8 +172,8 @@ export async function storeSamples(samples: SensorSample[]) {
             temperature: s.temperature
         }));
         localDB.samples.push(...newSamples);
-        // Throttle save? For now, save every 50 samples to avoid disk thrashing
-        if (localDB.samples.length % 50 === 0) saveLocalDB();
+        // Throttle save? Save every 10 samples to ensure data persistence
+        if (localDB.samples.length % 10 === 0) saveLocalDB();
     }
 }
 
