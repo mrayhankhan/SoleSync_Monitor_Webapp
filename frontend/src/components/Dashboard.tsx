@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import AHRS from 'ahrs';
 import { CalibrationWizard, type AxisMapping } from './CalibrationWizard';
+import { SessionsModal } from './SessionsModal';
+import { Activity } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
     const { isConnected, socket } = useSocket();
@@ -45,6 +47,28 @@ export const Dashboard: React.FC = () => {
     // AHRS Filter Refs
     const leftMadgwickRef = useRef<any>(null);
     const rightMadgwickRef = useRef<any>(null);
+
+    // Recording State
+    const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
+    const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
+
+    const toggleRecording = async () => {
+        if (recordingSessionId) {
+            setRecordingSessionId(null);
+        } else {
+            const newSessionId = `session_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+            setRecordingSessionId(newSessionId);
+            try {
+                await fetch('http://localhost:3000/api/session/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: newSessionId })
+                });
+            } catch (e) {
+                console.error("Failed to start session on backend", e);
+            }
+        }
+    };
 
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
@@ -209,6 +233,13 @@ export const Dashboard: React.FC = () => {
                 stepCount: 0,
                 gaitPhase: 'stance'
             };
+
+            // RECORDING LOGIC
+            if (recordingSessionId && socket) {
+                // Format: timestamp,deviceId,foot,ax,ay,az,gx,gy,gz,fsr1,fsr2,fsr3,fsr4,fsr5,heelRaw,voltage,temperature
+                const csvLine = `${new Date().toISOString()},${deviceId},${side},${acc.x},${acc.y},${acc.z},${gyro.x},${gyro.y},${gyro.z},${fsr[0]},${fsr[1]},${fsr[2]},${fsr[3]},${fsr[4]},${heel},0,0`;
+                socket.emit('rawCSV', { csv: csvLine, gatewayId: 'web-dashboard', sessionId: recordingSessionId });
+            }
 
             setSamples(prev => [...prev, sample].slice(-100));
             if (side === 'left') setLastLeftTime(Date.now());
@@ -428,6 +459,23 @@ export const Dashboard: React.FC = () => {
 
                     <div className="h-6 w-px bg-gray-700 mx-2"></div>
 
+                    <button
+                        onClick={toggleRecording}
+                        className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${recordingSessionId ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                    >
+                        <Activity size={16} />
+                        {recordingSessionId ? 'Stop Rec' : 'Start Rec'}
+                    </button>
+
+                    <button
+                        onClick={() => setSessionsModalOpen(true)}
+                        className="px-4 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium text-sm transition-colors ml-2"
+                    >
+                        View Analytics
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-700 mx-2"></div>
+
                     <Link
                         to="/settings"
                         className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
@@ -485,6 +533,11 @@ export const Dashboard: React.FC = () => {
                 onClose={() => setWizardOpen(prev => ({ ...prev, isOpen: false }))}
                 onComplete={handleWizardComplete}
                 latestSample={wizardOpen.side === 'left' ? latestLeft : latestRight}
+            />
+
+            <SessionsModal
+                isOpen={sessionsModalOpen}
+                onClose={() => setSessionsModalOpen(false)}
             />
         </div>
     );

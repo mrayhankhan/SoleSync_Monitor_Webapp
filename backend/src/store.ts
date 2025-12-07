@@ -50,6 +50,19 @@ export async function initDB() {
         );
       `);
 
+            // Create session summaries view
+            await client.query(`
+        CREATE OR REPLACE VIEW session_summaries AS
+        SELECT
+          sessionid,
+          foot,
+          MIN(time) AS start_time,
+          MAX(time) AS end_time,
+          COUNT(*) AS sample_count
+        FROM samples
+        GROUP BY sessionid, foot;
+      `);
+
             try {
                 await client.query("SELECT create_hypertable('samples', 'time', if_not_exists => TRUE);");
             } catch (err) {
@@ -135,6 +148,59 @@ export async function createSession(sessionId: string, userId: string = 'user1')
             'INSERT INTO sessions (id, userId, startTime) VALUES ($1, $2, NOW()) ON CONFLICT (id) DO NOTHING',
             [sessionId, userId]
         );
+    } finally {
+        client.release();
+    }
+} finally {
+    client.release();
+}
+}
+
+export async function getSessionSummaries() {
+    if (!isDbConnected) return [];
+    const client = await pool.connect();
+    try {
+        const res = await client.query('SELECT sessionid, foot, start_time, end_time, sample_count FROM session_summaries ORDER BY start_time DESC');
+        return res.rows;
+    } finally {
+        client.release();
+    }
+}
+
+export async function deleteSession(sessionId: string) {
+    if (!isDbConnected) return;
+    const client = await pool.connect();
+    try {
+        await client.query('DELETE FROM samples WHERE sessionid = $1', [sessionId]);
+        await client.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
+    } finally {
+        client.release();
+    }
+}
+
+export async function getSessionSamples(sessionId: string, foot?: string) {
+    if (!isDbConnected) return [];
+    const client = await pool.connect();
+    try {
+        let query = 'SELECT * FROM samples WHERE sessionid = $1';
+        const params: any[] = [sessionId];
+
+        if (foot) {
+            query += ' AND foot = $2';
+            params.push(foot);
+        }
+
+        query += ' ORDER BY time ASC';
+
+        const res = await client.query(query, params);
+        return res.rows.map(row => ({
+            ...row,
+            timestamp: new Date(row.time).getTime(),
+            accel: { x: row.accelx, y: row.accely, z: row.accelz },
+            gyro: { x: row.gyrox, y: row.gyroy, z: row.gyroz },
+            fsr: [row.fsr1, row.fsr2, row.fsr3, row.fsr4, row.fsr5],
+            heelRaw: row.heelraw
+        }));
     } finally {
         client.release();
     }

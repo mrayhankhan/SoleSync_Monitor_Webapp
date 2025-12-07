@@ -5,7 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { parseCsvChunk } from './parser';
 import { processSamples } from './analytics';
-import { storeSamples, initDB, createSession, getSessions, getSessionData } from './store';
+import { storeSamples, initDB, createSession, getSessions, getSessionData, getSessionSummaries, deleteSession, getSessionSamples } from './store';
 
 dotenv.config();
 
@@ -98,6 +98,24 @@ app.get('/api/session/:id/data', async (req, res) => {
     const { id } = req.params;
     const samples = await getSessionData(id);
     res.json({ samples });
+});
+
+app.get('/api/sessions', async (req, res) => {
+    const sessions = await getSessionSummaries();
+    res.json(sessions);
+});
+
+app.delete('/api/sessions/:sessionId', async (req, res) => {
+    const { sessionId } = req.params;
+    await deleteSession(sessionId);
+    res.sendStatus(204);
+});
+
+app.get('/api/sessions/:sessionId/samples', async (req, res) => {
+    const { sessionId } = req.params;
+    const { foot } = req.query;
+    const samples = await getSessionSamples(sessionId, foot as string);
+    res.json(samples);
 });
 
 app.get('/', (req, res) => {
