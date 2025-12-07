@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
-import { FootViewer } from './FootViewer';
 import { Heatmap } from './Heatmap';
-import { Link } from 'react-router-dom';
-import { Settings, Activity, Bluetooth, Wifi, Square, History, Footprints, Trash2, Calendar, Clock, ArrowRight, X } from 'lucide-react';
+import { Settings, Activity, Bluetooth, Wifi, Square, History, Footprints } from 'lucide-react';
 import AHRS from 'ahrs';
-import { CalibrationWizard, type AxisMapping } from './CalibrationWizard';
+import { type AxisMapping } from './CalibrationWizard';
 import { SessionsModal } from './SessionsModal';
 import { ThemeToggle } from './ThemeToggle';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, useGLTF } from '@react-three/drei';
+import { OrbitControls, Environment } from '@react-three/drei';
 import { Suspense } from 'react';
 import { ShoeModel } from './ShoeModel';
 
@@ -59,7 +57,6 @@ export const Dashboard: React.FC = () => {
     const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
-    const isRecording = !!recordingSessionId;
     const isBleConnected = !!leftDevice || !!rightDevice;
 
     useEffect(() => {
@@ -104,17 +101,6 @@ export const Dashboard: React.FC = () => {
         leftMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
         rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
     }, []);
-
-    const handleWizardComplete = (mapping: AxisMapping) => {
-        const side = wizardOpen.side;
-        setAxisMappings(prev => ({ ...prev, [side]: mapping }));
-        axisMappingsRef.current = { ...axisMappingsRef.current, [side]: mapping };
-        console.log(`[${side}] Axis Mapping Updated:`, mapping);
-
-        // Reset AHRS filter to clear history
-        if (side === 'left') leftMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
-        else rightMadgwickRef.current = new AHRS({ sampleInterval: 20, algorithm: 'Madgwick', beta: 0.1 });
-    };
 
     const applyAxisMapping = (raw: { x: number, y: number, z: number }, mapping: AxisMapping | null) => {
         if (!mapping) return raw;
@@ -357,116 +343,6 @@ export const Dashboard: React.FC = () => {
         }
     };
 
-    // Check connection status (timeout after 2 seconds)
-    // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
-    const hasRecentLeftData = now - lastLeftTime < 2000 && lastLeftTime > 0;
-    const hasRecentRightData = now - lastRightTime < 2000 && lastRightTime > 0;
-
-    const isLeftActive = hasRecentLeftData && (!!leftDevice || isSimulating);
-    const isRightActive = hasRecentRightData && (!!rightDevice || isSimulating);
-
-    // Get latest samples for display
-    const latestLeft = samples.filter(s => s.foot === 'left').pop();
-    const latestRight = samples.filter(s => s.foot === 'right').pop();
-
-    const renderPressureData = (data: any, title: string) => {
-        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
-        return (
-            <div className="text-xs font-mono text-gray-300 space-y-1">
-                <div className="font-bold text-gray-400 mb-1">{title}</div>
-                <div className="flex space-x-2">
-                    {data.fsr.map((val: number, i: number) => (
-                        <div key={i} className="bg-gray-700 px-1 rounded">S{i}: {val.toFixed(0)}</div>
-                    ))}
-                </div>
-            </div>
-        );
-    };
-
-    const renderSensorData = (data: any, title: string, side: 'left' | 'right') => {
-        if (!data) return <div className="text-gray-500 text-xs">Waiting for data...</div>;
-        return (
-            <div className="text-xs font-mono text-gray-300 space-y-1">
-                <div className="flex justify-between items-center mb-1">
-                    <div className="font-bold text-gray-400">{title}</div>
-                    <div className="flex space-x-1">
-                        <button
-                            onClick={() => setWizardOpen({ side, isOpen: true })}
-                            className="px-2 py-0.5 bg-purple-700 hover:bg-purple-600 text-white text-[10px] rounded transition-colors"
-                        >
-                            Wizard
-                        </button>
-                        <button
-                            onClick={() => calibrate(side)}
-                            className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded transition-colors"
-                        >
-                            Zero
-                        </button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4">
-                    <div>Accel X: {data.accel.x.toFixed(2)}</div>
-                    <div>Gyro X: {data.gyro.x.toFixed(2)}</div>
-                    <div>Accel Y: {data.accel.y.toFixed(2)}</div>
-                    <div>Gyro Y: {data.gyro.y.toFixed(2)}</div>
-                    <div>Accel Z: {data.accel.z.toFixed(2)}</div>
-                    <div>Gyro Z: {data.gyro.z.toFixed(2)}</div>
-                </div>
-                {/* Debug: Show Calibration Offset */}
-                <div className="text-[10px] text-gray-500 mt-1">
-                    Offset: W:{calibrationOffsets[side].w.toFixed(2)} X:{calibrationOffsets[side].x.toFixed(2)} Y:{calibrationOffsets[side].y.toFixed(2)} Z:{calibrationOffsets[side].z.toFixed(2)}
-                </div>
-                {/* Debug: Show Axis Mapping */}
-                {axisMappings[side] && (
-                    <div className="text-[10px] text-gray-500">
-                        Map: X:{axisMappings[side]?.x.sign > 0 ? '+' : '-'}{axisMappings[side]?.x.index} Y:{axisMappings[side]?.y.sign > 0 ? '+' : '-'}{axisMappings[side]?.y.index} Z:{axisMappings[side]?.z.sign > 0 ? '+' : '-'}{axisMappings[side]?.z.index}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => {
-        let statusText = 'Disconnected';
-        let statusColor = 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800';
-        let dotColor = 'bg-red-500';
-
-        if (isBleConnected) {
-            statusText = 'BLE Connected';
-            statusColor = 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800';
-            dotColor = 'bg-green-500';
-        } else if (connected && isSimulating) {
-            statusText = 'Simulating';
-            statusColor = 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800';
-            dotColor = 'bg-blue-500';
-        }
-
-        return (
-            <div className="flex items-center space-x-2">
-                <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
-                    <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
-                    {label}: {statusText}
-                </div>
-                {!isBleConnected && (
-                    <button
-                        onClick={onConnect}
-                        className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                    >
-                        Connect BLE
-                    </button>
-                )}
-            </div>
-        );
-    };
-
-    const toggleSimulation = () => {
-        if (isSimulating) {
-            socket?.emit('stopSimulation');
-        } else {
-            socket?.emit('startSimulation');
-        }
-    };
-
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -478,6 +354,18 @@ export const Dashboard: React.FC = () => {
     // For the 3D view and Heatmap, we might want to show both or toggle.
     // The UI shows a "Left" / "Right" toggle in the heatmap section but it's hardcoded.
     // Let's use the latest data from either foot for the main view if available.
+
+    // Check connection status (timeout after 2 seconds)
+    // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
+    const hasRecentLeftData = now - lastLeftTime < 2000 && lastLeftTime > 0;
+    const hasRecentRightData = now - lastRightTime < 2000 && lastRightTime > 0;
+
+    const isLeftActive = hasRecentLeftData && (!!leftDevice || isSimulating);
+    const isRightActive = hasRecentRightData && (!!rightDevice || isSimulating);
+
+    // Get latest samples for display
+    const latestLeft = samples.filter(s => s.foot === 'left').pop();
+    const latestRight = samples.filter(s => s.foot === 'right').pop();
 
     const activeSide = 'left'; // Default to left for main view for now
     const activeSample = activeSide === 'left' ? latestLeft : latestRight;

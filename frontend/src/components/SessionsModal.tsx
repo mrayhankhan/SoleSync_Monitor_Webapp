@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, Calendar, Clock, Activity } from 'lucide-react';
+import { X, Trash2, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SessionSummary {

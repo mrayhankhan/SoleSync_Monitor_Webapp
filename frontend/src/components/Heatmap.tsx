@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import type { ProcessedSample } from '../../../backend/src/analytics';
 import { useSettings } from '../context/SettingsContext';
 
 interface HeatmapProps {

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { useGLTF } from '@react-three/drei';
+// import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -8,7 +8,7 @@ interface ShoeModelProps {
     accel: { x: number, y: number, z: number };
 }
 
-export const ShoeModel: React.FC<ShoeModelProps> = ({ quaternion, accel }) => {
+export const ShoeModel: React.FC<ShoeModelProps> = ({ quaternion }) => {
     const group = useRef<THREE.Group>(null);
     // Use a simple box if model not found, or try to load a default model
     // For now, let's just render a box to ensure it works without external assets
