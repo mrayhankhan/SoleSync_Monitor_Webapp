@@ -47,7 +47,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
             // LERP (Linear Interpolation) for smoothness
             // Factor 0.1 gives a smooth ease-out effect
             for (let i = 0; i < 6; i++) {
-                currentSensors.current[i] += (targetSensors.current[i] - currentSensors.current[i]) * 0.1;
+                currentSensors.current[i] += (targetSensors.current[i] - currentSensors.current[i]) * 0.05;
             }
 
             // Clear canvas
@@ -102,7 +102,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
                 { ...sensorPositions[5], val: currentSensors.current[5] }
             ];
 
-            const sigma = Math.max(lowW, lowH) * 0.08;
+            const sigma = Math.max(lowW, lowH) * 0.12;
             const sigmaSquared = sigma * sigma;
             const kernelSize = Math.ceil(sigma * 3);
 

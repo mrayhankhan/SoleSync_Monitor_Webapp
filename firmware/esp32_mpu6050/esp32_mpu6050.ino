@@ -60,12 +60,23 @@ class MyServerCallbacks : public BLEServerCallbacks {
   }
 };
 
+// FSR Pins
+// User specified: 32, 33, 34, 35, VN (39)
+const int FSR_PINS[5] = {32, 33, 34, 35, 39};
+// const int HEEL_PIN = 39; // Removed as user only listed 5 pins
+
 // -------------------------------------------------------------------------
 // SETUP
 // -------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE Work!");
+
+  // Initialize FSR Pins
+  for (int i = 0; i < 5; i++) {
+    pinMode(FSR_PINS[i], INPUT);
+  }
+  // pinMode(HEEL_PIN, INPUT);
 
   // Initialize I2C
   Wire.begin(21, 22);
@@ -115,6 +126,7 @@ void setup() {
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
+  Serial.println("Setup Complete. Starting Loop...");
 }
 
 // -------------------------------------------------------------------------
@@ -128,19 +140,60 @@ void loop() {
   imu.getAcceleration(&ax, &ay, &az);
   imu.getRotation(&gx, &gy, &gz);
 
-  // Debug Print (Visible in Serial Monitor)
-  Serial.print("Accel: ");
+  // Read FSRs
+  // IMPORTANT: Pins 34, 35, 36, 39 are INPUT ONLY on ESP32.
+  // They do NOT have internal pull-up/pull-down resistors.
+  // You MUST use an external voltage divider (e.g., 10k resistor to GND) for
+  // these pins. If you don't, they will float or read 0. Pins 32, 33 have
+  // internal pull-ups/downs available, which might be why they work if wired
+  // simply.
+
+  uint16_t fsrValues[5];
+  for (int i = 0; i < 5; i++) {
+    fsrValues[i] = map(analogRead(FSR_PINS[i]), 0, 4095, 0, 1023);
+  }
+  // uint16_t heelValue = map(analogRead(HEEL_PIN), 0, 4095, 0, 1023);
+  uint16_t heelValue = 0; // Default to 0 as we only have 5 pins
+
+  // Debug Print (Serial Monitor & Plotter compatible)
+  // Format: "Label:Value,Label:Value,..."
+  // Moved OUTSIDE if(deviceConnected) so it always prints
+  Serial.print("ax:");
   Serial.print(ax);
-  Serial.print(", ");
+  Serial.print(",");
+  Serial.print("ay:");
   Serial.print(ay);
-  Serial.print(", ");
+  Serial.print(",");
+  Serial.print("az:");
   Serial.print(az);
-  Serial.print(" | Gyro: ");
+  Serial.print(",");
+  Serial.print("gx:");
   Serial.print(gx);
-  Serial.print(", ");
+  Serial.print(",");
+  Serial.print("gy:");
   Serial.print(gy);
-  Serial.print(", ");
-  Serial.println(gz);
+  Serial.print(",");
+  Serial.print("gz:");
+  Serial.print(gz);
+  Serial.print(",");
+
+  Serial.print("FSR0:");
+  Serial.print(fsrValues[0]);
+  Serial.print(",");
+  Serial.print("FSR1:");
+  Serial.print(fsrValues[1]);
+  Serial.print(",");
+  Serial.print("FSR2:");
+  Serial.print(fsrValues[2]);
+  Serial.print(",");
+  Serial.print("FSR3:");
+  Serial.print(fsrValues[3]);
+  Serial.print(",");
+  Serial.print("FSR4:");
+  Serial.print(fsrValues[4]);
+  Serial.print(",");
+  Serial.print("Heel:");
+  Serial.println(heelValue);
 
   // Only send via BLE if connected
   if (deviceConnected) {
@@ -153,10 +206,11 @@ void loop() {
     currentData.gy = gy / 131.0;
     currentData.gz = gz / 131.0;
 
-    // Zero out FSRs
-    for (int i = 0; i < 5; i++)
-      currentData.fsr[i] = 0;
-    currentData.heel = 0;
+    // Populate FSRs
+    for (int i = 0; i < 5; i++) {
+      currentData.fsr[i] = fsrValues[i];
+    }
+    currentData.heel = heelValue;
 
     // Send
     pCharacteristic->setValue((uint8_t *)&currentData, sizeof(SensorData));
