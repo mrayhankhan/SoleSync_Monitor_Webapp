@@ -85,7 +85,7 @@ export function detectSteps(samples: Sample[]): StepEvent[] {
     return steps;
 }
 
-export function computeBasicMetrics(samples: Sample[], steps: StepEvent[]): BasicMetrics {
+export function computeBasicMetrics(steps: StepEvent[]): BasicMetrics {
     if (steps.length < 2) {
         return { stepCount: steps.length, cadence: 0, avgContactTime: 0, stancePercent: 0 };
     }
@@ -173,7 +173,7 @@ export function computeLoadMetrics(samples: Sample[]): LoadMetrics {
 
 export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
     const steps = detectSteps(samples);
-    const basic = computeBasicMetrics(samples, steps);
+    const basic = computeBasicMetrics(steps);
     const load = computeLoadMetrics(samples);
 
     return {

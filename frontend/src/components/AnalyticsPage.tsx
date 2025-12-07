@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { Sample, AnalyticsMetrics, computeAnalytics } from '../utils/analyticsHelper';
+import { type Sample, type AnalyticsMetrics, computeAnalytics } from '../utils/analyticsHelper';
 import { BasicSummaryCard } from './analytics/BasicSummaryCard';
 import { StepsTimeline } from './analytics/StepsTimeline';
 

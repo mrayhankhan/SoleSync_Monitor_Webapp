@@ -1,5 +1,5 @@
 import React from 'react';
-import { BasicMetrics } from '../../utils/analyticsHelper';
+import { type BasicMetrics } from '../../utils/analyticsHelper';
 
 interface BasicSummaryCardProps {
     basic: BasicMetrics;

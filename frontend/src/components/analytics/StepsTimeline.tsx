@@ -1,6 +1,6 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceDot, ResponsiveContainer } from 'recharts';
-import { Sample, StepEvent } from '../../utils/analyticsHelper';
+import { type Sample, type StepEvent } from '../../utils/analyticsHelper';
 
 interface StepsTimelineProps {
     samples: Sample[];
