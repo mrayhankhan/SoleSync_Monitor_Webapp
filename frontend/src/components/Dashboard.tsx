@@ -277,8 +277,7 @@ export const Dashboard: React.FC = () => {
         const checkStatus = async () => {
             try {
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${API_URL}/api/status`);
-                const data = await res.json();
+                await fetch(`${API_URL}/api/status`);
                 // If backend is up, we are "connected" for storage purposes (either DB or Local)
                 setDbConnected(true);
             } catch (e) {
