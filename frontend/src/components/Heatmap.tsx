@@ -25,7 +25,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
                 latestSample.fsr[1],
                 latestSample.fsr[2],
                 latestSample.fsr[3],
-                latestSample.heelRaw
+                latestSample.fsr[4]
             ];
         }
     }, [samples, side]);

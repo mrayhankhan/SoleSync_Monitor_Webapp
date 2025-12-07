@@ -62,7 +62,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
 
 // FSR Pins
 // User specified: 32, 33, 34, 35, VN (39)
-const int FSR_PINS[5] = {32, 33, 34, 35, 39};
+const int FSR_PINS[5] = {32, 34, 35, 39, 36};
 // const int HEEL_PIN = 39; // Removed as user only listed 5 pins
 
 // -------------------------------------------------------------------------
@@ -151,6 +151,8 @@ void loop() {
   uint16_t fsrValues[5];
   for (int i = 0; i < 5; i++) {
     fsrValues[i] = map(analogRead(FSR_PINS[i]), 0, 4095, 0, 1023);
+    if (fsrValues[i] < 200)
+      fsrValues[i] = 0; // Noise threshold
   }
   // uint16_t heelValue = map(analogRead(HEEL_PIN), 0, 4095, 0, 1023);
   uint16_t heelValue = 0; // Default to 0 as we only have 5 pins
