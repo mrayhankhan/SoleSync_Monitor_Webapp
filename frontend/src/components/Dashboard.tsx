@@ -3,7 +3,7 @@ import { useSocket } from '../context/SocketContext';
 import { Heatmap } from './Heatmap';
 import { Settings, Activity, Bluetooth, Wifi, Square, History, Footprints } from 'lucide-react';
 import AHRS from 'ahrs';
-import { type AxisMapping } from './CalibrationWizard';
+import { CalibrationWizard, type AxisMapping } from './CalibrationWizard';
 import { SessionsModal } from './SessionsModal';
 import { ThemeToggle } from './ThemeToggle';
 import { Canvas } from '@react-three/fiber';
@@ -132,6 +132,14 @@ export const Dashboard: React.FC = () => {
 
             console.log(`[${side}] Calibrated! Offset:`, newOffset);
         }
+    };
+
+    const handleWizardComplete = (mapping: AxisMapping) => {
+        const side = wizardOpen.side;
+        setAxisMappings(prev => ({ ...prev, [side]: mapping }));
+        axisMappingsRef.current[side] = mapping;
+        setWizardOpen({ side: 'left', isOpen: false });
+        console.log(`[${side}] Wizard Complete! Mapping:`, mapping);
     };
 
     const handleBleData = (dataView: DataView, side: 'left' | 'right', deviceId: string) => {
@@ -654,6 +662,19 @@ export const Dashboard: React.FC = () => {
                     <SessionsModal
                         isOpen={sessionsModalOpen}
                         onClose={() => setSessionsModalOpen(false)}
+                    />
+                )
+            }
+
+            {/* Calibration Wizard Modal */}
+            {
+                wizardOpen.isOpen && (
+                    <CalibrationWizard
+                        isOpen={wizardOpen.isOpen}
+                        onClose={() => setWizardOpen({ ...wizardOpen, isOpen: false })}
+                        onComplete={handleWizardComplete}
+                        side={wizardOpen.side}
+                        latestSample={wizardOpen.side === 'left' ? latestLeft : latestRight}
                     />
                 )
             }
