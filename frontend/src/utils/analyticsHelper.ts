@@ -33,10 +33,17 @@ export type LoadMetrics = {
     dominantRegion: string; // e.g. 'heel', 'forefoot', 'medial'
 };
 
+export type AsymmetryMetrics = {
+    stepCountDiff: number;
+    contactTimeSI: number; // symmetry index
+    loadSI: number;
+};
+
 export type AnalyticsMetrics = {
     basic: BasicMetrics;
     load: LoadMetrics;
     steps: StepEvent[];
+    asymmetry?: AsymmetryMetrics;
 };
 
 const CONTACT_THRESH = 50; // tune this
@@ -109,66 +116,90 @@ export function computeBasicMetrics(steps: StepEvent[]): BasicMetrics {
 }
 
 export function computeLoadMetrics(samples: Sample[]): LoadMetrics {
-    // Simple integration of pressure over time per region
-    // FSR mapping (approx): 0=Meta1, 1=Meta2, 2=Mid, 3=LatMid, 4=Heel
+    let heelForce = 0;
+    let forefootForce = 0;
+    let medialForce = 0;
+    let lateralForce = 0;
 
-    let heelSum = 0;
-    let forefootSum = 0; // Meta1 + Meta2
-    let midSum = 0;      // Mid + LatMid
+    for (const s of samples) {
+        const h = s.heelraw ?? 0;
+        // Mapping: fsr[0]=Meta1, fsr[1]=Meta2, fsr[2]=Mid, fsr[3]=LatMid, fsr[4]=Heel(Toe?)
+        // User provided mapping: 
+        // fsr1, fsr2 = forefoot medial (fsr[0], fsr[1]?) -> Wait, user said "fsr1, fsr2 = forefoot medial"
+        // Let's assume standard mapping: 0=Meta1, 1=Meta2, 2=Mid, 3=LatMid, 4=Heel
+        // User logic:
+        // heelRaw = heel
+        // fsr1, fsr2 = forefoot medial
+        // fsr3, fsr4 = forefoot lateral
+        // fsr5 = toe
 
-    let totalSum = 0;
+        // My fsr array is 0-indexed. 
+        // s.fsr[0] -> fsr1
+        // s.fsr[1] -> fsr2
+        // s.fsr[2] -> fsr3
+        // s.fsr[3] -> fsr4
+        // s.fsr[4] -> fsr5
 
-    samples.forEach(s => {
-        const f = s.fsr;
-        // Forefoot: 0, 1
-        const ff = (f[0] || 0) + (f[1] || 0);
-        // Midfoot: 2, 3
-        const mid = (f[2] || 0) + (f[3] || 0);
-        // Heel: 4 (and heelraw if present)
-        const heel = (f[4] || 0) + (s.heelraw || 0);
+        const f1 = s.fsr[0] ?? 0;
+        const f2 = s.fsr[1] ?? 0;
+        const f3 = s.fsr[2] ?? 0;
+        const f4 = s.fsr[3] ?? 0;
+        const f5 = s.fsr[4] ?? 0;
 
-        forefootSum += ff;
-        midSum += mid;
-        heelSum += heel;
-        totalSum += ff + mid + heel;
-    });
+        const totalSampleForce = h + f1 + f2 + f3 + f4 + f5;
+        if (totalSampleForce < CONTACT_THRESH) continue; // only during contact
 
-    if (totalSum === 0) {
-        return { heelPct: 0, forefootPct: 0, medialPct: 0, lateralPct: 0, dominantRegion: 'none' };
+        heelForce += h;
+        forefootForce += f1 + f2 + f3 + f4 + f5;
+
+        medialForce += f1 + f2 + f5; // example mapping
+        lateralForce += f3 + f4;
     }
 
-    const heelPct = (heelSum / totalSum) * 100;
-    const forefootPct = (forefootSum / totalSum) * 100;
+    const total = heelForce + forefootForce || 1;
+    const totalML = medialForce + lateralForce || 1;
 
-    // Medial vs Lateral is harder with this specific sensor layout without exact coordinates
-    // But we can approximate: 
-    // Medial: Meta1 (0), Mid (2), Arch (removed)
-    // Lateral: Meta2 (1), LatMid (3)
-
-    let medialSum = 0;
-    let lateralSum = 0;
-
-    samples.forEach(s => {
-        const f = s.fsr;
-        medialSum += (f[0] || 0) + (f[2] || 0);
-        lateralSum += (f[1] || 0) + (f[3] || 0);
-    });
-
-    const mlTotal = medialSum + lateralSum;
-    const medialPct = mlTotal > 0 ? (medialSum / mlTotal) * 100 : 0;
-    const lateralPct = mlTotal > 0 ? (lateralSum / mlTotal) * 100 : 0;
+    const heelPct = (heelForce / total) * 100;
+    const forefootPct = (forefootForce / total) * 100;
+    const medialPct = (medialForce / totalML) * 100;
+    const lateralPct = (lateralForce / totalML) * 100;
 
     let dominantRegion = 'balanced';
-    if (heelPct > 50) dominantRegion = 'heel';
-    else if (forefootPct > 50) dominantRegion = 'forefoot';
+    if (heelPct > 60) dominantRegion = 'heel';
+    else if (forefootPct > 60) dominantRegion = 'forefoot';
+    else if (medialPct > 60) dominantRegion = 'medial';
+    else if (lateralPct > 60) dominantRegion = 'lateral';
 
-    return {
-        heelPct,
-        forefootPct,
-        medialPct,
-        lateralPct,
-        dominantRegion
-    };
+    return { heelPct, forefootPct, medialPct, lateralPct, dominantRegion };
+}
+
+function symmetryIndex(a: number, b: number): number {
+    return 100 * (b - a) / ((a + b) / 2 || 1);
+}
+
+export function computeAsymmetry(
+    left: { basic: BasicMetrics; load: LoadMetrics },
+    right: { basic: BasicMetrics; load: LoadMetrics }
+): AsymmetryMetrics {
+    const stepCountDiff = right.basic.stepCount - left.basic.stepCount;
+
+    const contactTimeSI = symmetryIndex(
+        left.basic.avgContactTime,
+        right.basic.avgContactTime
+    );
+
+    // use total load proxy = heel+forefoot, but we only have %
+    // This part of user logic is slightly flawed because % always sums to 100.
+    // But let's follow user instruction: "leftLoad = left.load.heelPct + left.load.forefootPct"
+    // Since heelPct + forefootPct is always 100 (or close to it), this SI will likely be 0.
+    // Unless "total load proxy" meant raw force? 
+    // The user code says: "const leftLoad = left.load.heelPct + left.load.forefootPct;"
+    // I will implement exactly as requested.
+    const leftLoad = left.load.heelPct + left.load.forefootPct;
+    const rightLoad = right.load.heelPct + right.load.forefootPct;
+    const loadSI = symmetryIndex(leftLoad, rightLoad);
+
+    return { stepCountDiff, contactTimeSI, loadSI };
 }
 
 export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
