@@ -12,8 +12,8 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
     const { insoleImage, leftSensorPositions, rightSensorPositions } = useSettings();
 
     // Refs for smooth animation
-    const currentSensors = useRef<number[]>([0, 0, 0, 0, 0, 0]);
-    const targetSensors = useRef<number[]>([0, 0, 0, 0, 0, 0]);
+    const currentSensors = useRef<number[]>([0, 0, 0, 0, 0]);
+    const targetSensors = useRef<number[]>([0, 0, 0, 0, 0]);
     const animationFrameId = useRef<number>(0);
 
     // Update target values when new sample arrives
@@ -25,7 +25,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
                 latestSample.fsr[1],
                 latestSample.fsr[2],
                 latestSample.fsr[3],
-                latestSample.fsr[4],
                 latestSample.heelRaw
             ];
         }
@@ -46,7 +45,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
         const render = () => {
             // LERP (Linear Interpolation) for smoothness
             // Factor 0.1 gives a smooth ease-out effect
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 5; i++) {
                 currentSensors.current[i] += (targetSensors.current[i] - currentSensors.current[i]) * 0.05;
             }
 
@@ -98,8 +97,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ samples, side }) => {
                 { ...sensorPositions[1], val: currentSensors.current[1] },
                 { ...sensorPositions[2], val: currentSensors.current[2] },
                 { ...sensorPositions[3], val: currentSensors.current[3] },
-                { ...sensorPositions[4], val: currentSensors.current[4] },
-                { ...sensorPositions[5], val: currentSensors.current[5] }
+                { ...sensorPositions[4], val: currentSensors.current[4] }
             ];
 
             const sigma = Math.max(lowW, lowH) * 0.12;

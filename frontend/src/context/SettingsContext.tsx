@@ -21,7 +21,6 @@ const DEFAULT_POSITIONS: Point[] = [
     { x: 0.65, y: 0.25 }, // Metatarsal 2
     { x: 0.35, y: 0.45 }, // Midfoot
     { x: 0.65, y: 0.45 }, // Lateral Mid
-    { x: 0.5, y: 0.6 },   // Arch
     { x: 0.5, y: 0.85 }   // Heel
 ];
 
@@ -32,12 +31,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const [leftSensorPositions, setLeftSensorPositions] = useState<Point[]>(() => {
         const saved = localStorage.getItem('leftSensorPositions');
-        return saved ? JSON.parse(saved) : DEFAULT_POSITIONS;
+        const parsed = saved ? JSON.parse(saved) : DEFAULT_POSITIONS;
+        return parsed.length === DEFAULT_POSITIONS.length ? parsed : DEFAULT_POSITIONS;
     });
 
     const [rightSensorPositions, setRightSensorPositions] = useState<Point[]>(() => {
         const saved = localStorage.getItem('rightSensorPositions');
-        return saved ? JSON.parse(saved) : DEFAULT_POSITIONS;
+        const parsed = saved ? JSON.parse(saved) : DEFAULT_POSITIONS;
+        return parsed.length === DEFAULT_POSITIONS.length ? parsed : DEFAULT_POSITIONS;
     });
 
     useEffect(() => {
