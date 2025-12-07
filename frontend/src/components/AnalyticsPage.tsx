@@ -18,7 +18,8 @@ export const AnalyticsPage: React.FC = () => {
         if (!sessionId) return;
 
         setLoading(true);
-        fetch(`http://localhost:3000/api/sessions/${sessionId}/samples?foot=${foot}`)
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        fetch(`${API_URL}/api/sessions/${sessionId}/samples?foot=${foot}`)
             .then(res => res.json())
             .then((data: Sample[]) => {
                 setSamples(data);

@@ -50,16 +50,33 @@ export const Dashboard: React.FC = () => {
 
     // Recording State
     const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
+    const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+    const [elapsedTime, setElapsedTime] = useState(0);
     const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
+
+    useEffect(() => {
+        let interval: any;
+        if (recordingSessionId && recordingStartTime) {
+            interval = setInterval(() => {
+                setElapsedTime(Math.floor((Date.now() - recordingStartTime) / 1000));
+            }, 1000);
+        } else {
+            setElapsedTime(0);
+        }
+        return () => clearInterval(interval);
+    }, [recordingSessionId, recordingStartTime]);
 
     const toggleRecording = async () => {
         if (recordingSessionId) {
             setRecordingSessionId(null);
+            setRecordingStartTime(null);
         } else {
             const newSessionId = `session_${new Date().toISOString().replace(/[:.]/g, '-')}`;
             setRecordingSessionId(newSessionId);
+            setRecordingStartTime(Date.now());
             try {
-                await fetch('http://localhost:3000/api/session/start', {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                await fetch(`${API_URL}/api/session/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessionId: newSessionId })
@@ -464,7 +481,7 @@ export const Dashboard: React.FC = () => {
                         className={`px-4 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${recordingSessionId ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                     >
                         <Activity size={16} />
-                        {recordingSessionId ? 'Stop Rec' : 'Start Rec'}
+                        {recordingSessionId ? `Stop (${elapsedTime}s)` : 'Start Rec'}
                     </button>
 
                     <button

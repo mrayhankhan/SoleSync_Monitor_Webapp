@@ -21,7 +21,8 @@ export const SessionsModal: React.FC<SessionsModalProps> = ({ isOpen, onClose })
 
     useEffect(() => {
         if (!isOpen) return;
-        fetch('http://localhost:3000/api/sessions')
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        fetch(`${API_URL}/api/sessions`)
             .then(res => res.json())
             .then(setSessions)
             .catch(err => console.error("Failed to fetch sessions:", err));
@@ -31,7 +32,8 @@ export const SessionsModal: React.FC<SessionsModalProps> = ({ isOpen, onClose })
         if (!confirm('Are you sure you want to delete this session?')) return;
 
         try {
-            await fetch(`http://localhost:3000/api/sessions/${sessionId}`, { method: 'DELETE' });
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            await fetch(`${API_URL}/api/sessions/${sessionId}`, { method: 'DELETE' });
             setSessions(prev => prev.filter(s => s.sessionid !== sessionId));
         } catch (err) {
             console.error("Failed to delete session:", err);
