@@ -12,7 +12,7 @@ import { Activity } from 'lucide-react';
 interface StatusBadgeProps {
     label: string;
     connected: boolean;
-    onConnect: () => void;
+    onConnect: (e: React.MouseEvent) => void;
     isBleConnected: boolean;
     isSimulating: boolean;
 }
@@ -90,6 +90,9 @@ export const Dashboard: React.FC = () => {
     // AHRS Filter Refs
     const leftMadgwickRef = useRef<any>(null);
     const rightMadgwickRef = useRef<any>(null);
+
+    // Mock Data Intervals
+    const mockIntervals = useRef<{ left: any, right: any }>({ left: null, right: null });
 
     // Recording State
     const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
@@ -361,7 +364,43 @@ export const Dashboard: React.FC = () => {
     }, [socket]);
 
     // BLE Connection Handler
-    const connectBle = async (side: 'left' | 'right') => {
+    const connectBle = async (side: 'left' | 'right', isMock: boolean = false) => {
+        if (isMock) {
+            console.log(`Starting Mock Connection for ${side}`);
+            const mockDevice = { id: `mock-${side}`, name: `Mock ${side} Shoe`, gatt: { connected: true } };
+
+            if (side === 'left') setLeftDevice(mockDevice);
+            else setRightDevice(mockDevice);
+
+            // Clear existing interval if any
+            if (mockIntervals.current[side]) clearInterval(mockIntervals.current[side]);
+
+            // Generate fake data every 20ms
+            mockIntervals.current[side] = setInterval(() => {
+                const buffer = new ArrayBuffer(36);
+                const view = new DataView(buffer);
+
+                // Fake IMU (gentle sine wave)
+                const t = Date.now() / 1000;
+                view.setFloat32(0, Math.sin(t) * 0.5, true); // ax
+                view.setFloat32(4, Math.cos(t) * 0.5, true); // ay
+                view.setFloat32(8, 9.8, true);               // az
+                view.setFloat32(12, Math.sin(t * 2) * 10, true); // gx
+                view.setFloat32(16, Math.cos(t * 2) * 10, true); // gy
+                view.setFloat32(20, Math.sin(t * 0.5) * 5, true); // gz
+
+                // Fake FSR
+                for (let i = 0; i < 5; i++) {
+                    view.setUint16(24 + (i * 2), 500 + Math.sin(t + i) * 500, true);
+                }
+                view.setUint16(34, 100, true); // Heel
+
+                handleBleData(view, side, mockDevice.id);
+            }, 20);
+
+            return;
+        }
+
         try {
             // @ts-ignore - navigator.bluetooth is experimental
             const device = await navigator.bluetooth.requestDevice({
@@ -493,14 +532,14 @@ export const Dashboard: React.FC = () => {
                     <StatusBadge
                         label="Left Shoe"
                         connected={isLeftActive}
-                        onConnect={() => connectBle('left')}
+                        onConnect={(e) => connectBle('left', e.shiftKey)}
                         isBleConnected={!!leftDevice}
                         isSimulating={isSimulating}
                     />
                     <StatusBadge
                         label="Right Shoe"
                         connected={isRightActive}
-                        onConnect={() => connectBle('right')}
+                        onConnect={(e) => connectBle('right', e.shiftKey)}
                         isBleConnected={!!rightDevice}
                         isSimulating={isSimulating}
                     />
