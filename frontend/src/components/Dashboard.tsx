@@ -9,6 +9,47 @@ import { CalibrationWizard, type AxisMapping } from './CalibrationWizard';
 import { SessionsModal } from './SessionsModal';
 import { Activity } from 'lucide-react';
 
+interface StatusBadgeProps {
+    label: string;
+    connected: boolean;
+    onConnect: () => void;
+    isBleConnected: boolean;
+    isSimulating: boolean;
+}
+
+const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, isBleConnected, isSimulating }) => {
+    let statusText = 'Disconnected';
+    let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
+    let dotColor = 'bg-red-500';
+
+    if (isBleConnected) {
+        statusText = 'BLE Connected';
+        statusColor = 'bg-green-900/30 text-green-400 border-green-800';
+        dotColor = 'bg-green-500';
+    } else if (connected && isSimulating) {
+        statusText = 'Simulating';
+        statusColor = 'bg-blue-900/30 text-blue-400 border-blue-800';
+        dotColor = 'bg-blue-500';
+    }
+
+    return (
+        <div className="flex items-center space-x-2">
+            <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
+                <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
+                {label}: {statusText}
+            </div>
+            {!isBleConnected && (
+                <button
+                    onClick={onConnect}
+                    className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                >
+                    Connect BLE
+                </button>
+            )}
+        </div>
+    );
+};
+
 export const Dashboard: React.FC = () => {
     const { isConnected, socket } = useSocket();
     const [samples, setSamples] = useState<any[]>([]);
@@ -49,10 +90,6 @@ export const Dashboard: React.FC = () => {
     // AHRS Filter Refs
     const leftMadgwickRef = useRef<any>(null);
     const rightMadgwickRef = useRef<any>(null);
-
-    // Data Batching Refs
-    const incomingSamplesRef = useRef<any[]>([]);
-    const lastTimestampRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
 
     // Recording State
     const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
@@ -169,7 +206,7 @@ export const Dashboard: React.FC = () => {
 
             // Calculate dt (time since last sample)
             const now = Date.now();
-            const lastTime = side === 'left' ? lastTimestampRef.current.left : lastTimestampRef.current.right;
+            const lastTime = side === 'left' ? lastLeftTime : lastRightTime;
             let dt = 0.02; // Default 20ms
 
             if (lastTime > 0) {
@@ -264,12 +301,9 @@ export const Dashboard: React.FC = () => {
                 socket.emit('rawCSV', { csv: csvLine, gatewayId: 'web-dashboard', sessionId: recordingSessionId });
             }
 
-            // Batch updates instead of setting state immediately
-            incomingSamplesRef.current.push(sample);
-
-            // Update ref immediately for next dt calculation
-            if (side === 'left') lastTimestampRef.current.left = Date.now();
-            else lastTimestampRef.current.right = Date.now();
+            setSamples(prev => [...prev, sample].slice(-100));
+            if (side === 'left') setLastLeftTime(Date.now());
+            else setLastRightTime(Date.now());
 
         } catch (e) {
             console.error("Error parsing BLE data", e);
@@ -279,23 +313,6 @@ export const Dashboard: React.FC = () => {
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
         const interval = setInterval(() => setNow(Date.now()), 1000);
-
-        // Flush incoming samples to state every 100ms (10Hz)
-        const flushInterval = setInterval(() => {
-            if (incomingSamplesRef.current.length > 0) {
-                const samplesToFlush = [...incomingSamplesRef.current];
-                incomingSamplesRef.current = []; // Clear buffer
-
-                setSamples(prev => [...prev, ...samplesToFlush].slice(-100));
-
-                // Update last times for UI status
-                const lastLeft = samplesToFlush.filter(s => s.foot === 'left').pop();
-                const lastRight = samplesToFlush.filter(s => s.foot === 'right').pop();
-
-                if (lastLeft) setLastLeftTime(lastLeft.timestamp);
-                if (lastRight) setLastRightTime(lastRight.timestamp);
-            }
-        }, 100);
 
         // Check DB Status
         const checkStatus = async () => {
@@ -314,7 +331,6 @@ export const Dashboard: React.FC = () => {
 
         return () => {
             clearInterval(interval);
-            clearInterval(flushInterval);
             clearInterval(statusInterval);
         };
     }, []);
@@ -445,38 +461,7 @@ export const Dashboard: React.FC = () => {
         );
     };
 
-    const StatusBadge = ({ label, connected, onConnect, isBleConnected }: { label: string, connected: boolean, onConnect: () => void, isBleConnected: boolean }) => {
-        let statusText = 'Disconnected';
-        let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
-        let dotColor = 'bg-red-500';
 
-        if (isBleConnected) {
-            statusText = 'BLE Connected';
-            statusColor = 'bg-green-900/30 text-green-400 border-green-800';
-            dotColor = 'bg-green-500';
-        } else if (connected && isSimulating) {
-            statusText = 'Simulating';
-            statusColor = 'bg-blue-900/30 text-blue-400 border-blue-800';
-            dotColor = 'bg-blue-500';
-        }
-
-        return (
-            <div className="flex items-center space-x-2">
-                <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
-                    <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
-                    {label}: {statusText}
-                </div>
-                {!isBleConnected && (
-                    <button
-                        onClick={onConnect}
-                        className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                    >
-                        Connect BLE
-                    </button>
-                )}
-            </div>
-        );
-    };
 
     const toggleSimulation = () => {
         if (isSimulating) {
@@ -510,12 +495,14 @@ export const Dashboard: React.FC = () => {
                         connected={isLeftActive}
                         onConnect={() => connectBle('left')}
                         isBleConnected={!!leftDevice}
+                        isSimulating={isSimulating}
                     />
                     <StatusBadge
                         label="Right Shoe"
                         connected={isRightActive}
                         onConnect={() => connectBle('right')}
                         isBleConnected={!!rightDevice}
+                        isSimulating={isSimulating}
                     />
 
                     <div className="h-6 w-px bg-gray-700 mx-2"></div>
