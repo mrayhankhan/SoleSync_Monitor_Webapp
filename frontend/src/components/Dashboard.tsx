@@ -13,11 +13,12 @@ interface StatusBadgeProps {
     label: string;
     connected: boolean;
     onConnect: (e: React.MouseEvent) => void;
+    onDisconnect: () => void;
     isBleConnected: boolean;
     isSimulating: boolean;
 }
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, isBleConnected, isSimulating }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, onDisconnect, isBleConnected, isSimulating }) => {
     let statusText = 'Disconnected';
     let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
     let dotColor = 'bg-red-500';
@@ -44,6 +45,15 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, 
                     className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                 >
                     Connect BLE
+                </button>
+            )}
+            {isBleConnected && (
+                <button
+                    onClick={onDisconnect}
+                    className="w-6 h-6 flex items-center justify-center bg-red-900/50 hover:bg-red-800 text-red-300 rounded-full transition-colors text-xs"
+                    title="Disconnect"
+                >
+                    ✕
                 </button>
             )}
         </div>
@@ -363,6 +373,52 @@ export const Dashboard: React.FC = () => {
         };
     }, [socket]);
 
+    // Watchdog: Auto-disconnect if no data for 10s
+    useEffect(() => {
+        const checkWatchdog = () => {
+            const now = Date.now();
+
+            // Left Watchdog
+            if (leftDevice && now - lastLeftTime > 10000 && lastLeftTime > 0) {
+                console.warn("Left Device Watchdog Triggered: No data for 10s. Disconnecting.");
+                disconnectBle('left');
+            }
+
+            // Right Watchdog
+            if (rightDevice && now - lastRightTime > 10000 && lastRightTime > 0) {
+                console.warn("Right Device Watchdog Triggered: No data for 10s. Disconnecting.");
+                disconnectBle('right');
+            }
+        };
+
+        const interval = setInterval(checkWatchdog, 1000);
+        return () => clearInterval(interval);
+    }, [leftDevice, rightDevice, lastLeftTime, lastRightTime]);
+
+    const disconnectBle = (side: 'left' | 'right') => {
+        console.log(`Disconnecting ${side} device...`);
+
+        // Clear Mock Interval
+        if (mockIntervals.current[side]) {
+            clearInterval(mockIntervals.current[side]);
+            mockIntervals.current[side] = null;
+        }
+
+        // Disconnect Real Device
+        const device = side === 'left' ? leftDevice : rightDevice;
+        if (device && device.gatt && device.gatt.connected) {
+            try {
+                device.gatt.disconnect();
+            } catch (e) {
+                console.error("Error disconnecting GATT:", e);
+            }
+        }
+
+        // Reset State
+        if (side === 'left') setLeftDevice(null);
+        else setRightDevice(null);
+    };
+
     // BLE Connection Handler
     const connectBle = async (side: 'left' | 'right', isMock: boolean = false) => {
         if (isMock) {
@@ -431,10 +487,10 @@ export const Dashboard: React.FC = () => {
         }
     };
 
-    // Check connection status (timeout after 2 seconds)
+    // Check connection status (timeout after 5 seconds)
     // Only consider active if we have recent data AND (BLE is connected OR Simulation is running)
-    const hasRecentLeftData = now - lastLeftTime < 2000 && lastLeftTime > 0;
-    const hasRecentRightData = now - lastRightTime < 2000 && lastRightTime > 0;
+    const hasRecentLeftData = now - lastLeftTime < 5000 && lastLeftTime > 0;
+    const hasRecentRightData = now - lastRightTime < 5000 && lastRightTime > 0;
 
     const isLeftActive = hasRecentLeftData && (!!leftDevice || isSimulating);
     const isRightActive = hasRecentRightData && (!!rightDevice || isSimulating);
@@ -533,6 +589,7 @@ export const Dashboard: React.FC = () => {
                         label="Left Shoe"
                         connected={isLeftActive}
                         onConnect={(e) => connectBle('left', e.shiftKey)}
+                        onDisconnect={() => disconnectBle('left')}
                         isBleConnected={!!leftDevice}
                         isSimulating={isSimulating}
                     />
@@ -540,6 +597,7 @@ export const Dashboard: React.FC = () => {
                         label="Right Shoe"
                         connected={isRightActive}
                         onConnect={(e) => connectBle('right', e.shiftKey)}
+                        onDisconnect={() => disconnectBle('right')}
                         isBleConnected={!!rightDevice}
                         isSimulating={isSimulating}
                     />
