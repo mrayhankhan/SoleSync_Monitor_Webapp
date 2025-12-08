@@ -50,6 +50,10 @@ export const Dashboard: React.FC = () => {
     const leftMadgwickRef = useRef<any>(null);
     const rightMadgwickRef = useRef<any>(null);
 
+    // Data Batching Refs
+    const incomingSamplesRef = useRef<any[]>([]);
+    const lastTimestampRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
+
     // Recording State
     const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
     const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
@@ -165,7 +169,7 @@ export const Dashboard: React.FC = () => {
 
             // Calculate dt (time since last sample)
             const now = Date.now();
-            const lastTime = side === 'left' ? lastLeftTime : lastRightTime;
+            const lastTime = side === 'left' ? lastTimestampRef.current.left : lastTimestampRef.current.right;
             let dt = 0.02; // Default 20ms
 
             if (lastTime > 0) {
@@ -260,9 +264,12 @@ export const Dashboard: React.FC = () => {
                 socket.emit('rawCSV', { csv: csvLine, gatewayId: 'web-dashboard', sessionId: recordingSessionId });
             }
 
-            setSamples(prev => [...prev, sample].slice(-100));
-            if (side === 'left') setLastLeftTime(Date.now());
-            else setLastRightTime(Date.now());
+            // Batch updates instead of setting state immediately
+            incomingSamplesRef.current.push(sample);
+
+            // Update ref immediately for next dt calculation
+            if (side === 'left') lastTimestampRef.current.left = Date.now();
+            else lastTimestampRef.current.right = Date.now();
 
         } catch (e) {
             console.error("Error parsing BLE data", e);
@@ -272,6 +279,23 @@ export const Dashboard: React.FC = () => {
     useEffect(() => {
         // Update 'now' every second to trigger re-render of status
         const interval = setInterval(() => setNow(Date.now()), 1000);
+
+        // Flush incoming samples to state every 100ms (10Hz)
+        const flushInterval = setInterval(() => {
+            if (incomingSamplesRef.current.length > 0) {
+                const samplesToFlush = [...incomingSamplesRef.current];
+                incomingSamplesRef.current = []; // Clear buffer
+
+                setSamples(prev => [...prev, ...samplesToFlush].slice(-100));
+
+                // Update last times for UI status
+                const lastLeft = samplesToFlush.filter(s => s.foot === 'left').pop();
+                const lastRight = samplesToFlush.filter(s => s.foot === 'right').pop();
+
+                if (lastLeft) setLastLeftTime(lastLeft.timestamp);
+                if (lastRight) setLastRightTime(lastRight.timestamp);
+            }
+        }, 100);
 
         // Check DB Status
         const checkStatus = async () => {
@@ -290,6 +314,7 @@ export const Dashboard: React.FC = () => {
 
         return () => {
             clearInterval(interval);
+            clearInterval(flushInterval);
             clearInterval(statusInterval);
         };
     }, []);
