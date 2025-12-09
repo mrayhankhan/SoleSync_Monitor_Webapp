@@ -419,6 +419,32 @@ export const Dashboard: React.FC = () => {
         else setRightDevice(null);
     };
 
+    // Helper: Connect with Retry
+    const connectWithRetry = async (device: any, retries = 3, delay = 1000): Promise<any> => {
+        for (let i = 0; i < retries; i++) {
+            try {
+                console.log(`Attempting connection ${i + 1}/${retries}...`);
+                const server = await device.gatt?.connect();
+
+                // Wait a bit to ensure connection is stable
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                if (server && server.connected) {
+                    return server;
+                } else {
+                    throw new Error("GATT Server not connected after connect() call");
+                }
+            } catch (e) {
+                console.warn(`Connection attempt ${i + 1} failed:`, e);
+                if (i < retries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                    throw e;
+                }
+            }
+        }
+    };
+
     // BLE Connection Handler
     const connectBle = async (side: 'left' | 'right', isMock: boolean = false) => {
         if (isMock) {
@@ -463,7 +489,8 @@ export const Dashboard: React.FC = () => {
                 filters: [{ services: [SERVICE_UUID] }]
             });
 
-            const server = await device.gatt?.connect();
+            // Use robust connection with retry
+            const server = await connectWithRetry(device);
             const service = await server?.getPrimaryService(SERVICE_UUID);
             const char = await service?.getCharacteristic(CHARACTERISTIC_UUID);
 
@@ -483,7 +510,7 @@ export const Dashboard: React.FC = () => {
 
         } catch (e) {
             console.error("BLE Connection failed:", e);
-            alert("Failed to connect: " + e);
+            // alert("Failed to connect: " + e); // Removed alert for better UX
         }
     };
 
