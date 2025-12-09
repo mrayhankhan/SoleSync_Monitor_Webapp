@@ -65,6 +65,8 @@ export const Dashboard: React.FC = () => {
     const [samples, setSamples] = useState<any[]>([]);
     const [lastLeftTime, setLastLeftTime] = useState<number>(0);
     const [lastRightTime, setLastRightTime] = useState<number>(0);
+    // Refs for stable timestamp tracking (avoids stale closures and re-renders)
+    const lastDataTimeRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
     const [now, setNow] = useState<number>(Date.now());
 
     const [isSimulating, setIsSimulating] = useState(false);
@@ -219,7 +221,7 @@ export const Dashboard: React.FC = () => {
 
             // Calculate dt (time since last sample)
             const now = Date.now();
-            const lastTime = side === 'left' ? lastLeftTime : lastRightTime;
+            const lastTime = side === 'left' ? lastDataTimeRef.current.left : lastDataTimeRef.current.right;
             let dt = 0.02; // Default 20ms
 
             if (lastTime > 0) {
@@ -315,6 +317,12 @@ export const Dashboard: React.FC = () => {
             }
 
             setSamples(prev => [...prev, sample].slice(-100));
+
+            // Update Ref (Immediate, for logic)
+            if (side === 'left') lastDataTimeRef.current.left = Date.now();
+            else lastDataTimeRef.current.right = Date.now();
+
+            // Update State (Throttled/Batched, for UI)
             if (side === 'left') setLastLeftTime(Date.now());
             else setLastRightTime(Date.now());
 
@@ -355,8 +363,14 @@ export const Dashboard: React.FC = () => {
             const newSamples = data.samples;
             // Update timestamps
             newSamples.forEach(s => {
-                if (s.foot === 'left') setLastLeftTime(Date.now());
-                if (s.foot === 'right') setLastRightTime(Date.now());
+                if (s.foot === 'left') {
+                    lastDataTimeRef.current.left = Date.now();
+                    setLastLeftTime(Date.now());
+                }
+                if (s.foot === 'right') {
+                    lastDataTimeRef.current.right = Date.now();
+                    setLastRightTime(Date.now());
+                }
             });
 
             // Keep last 100 samples for visualization
@@ -373,27 +387,27 @@ export const Dashboard: React.FC = () => {
         };
     }, [socket]);
 
-    // Watchdog: Auto-disconnect if no data for 10s
+    // Watchdog: Auto-disconnect if no data for 30s
     useEffect(() => {
         const checkWatchdog = () => {
             const now = Date.now();
 
             // Left Watchdog
-            if (leftDevice && now - lastLeftTime > 10000 && lastLeftTime > 0) {
-                console.warn("Left Device Watchdog Triggered: No data for 10s. Disconnecting.");
+            if (leftDevice && now - lastDataTimeRef.current.left > 30000 && lastDataTimeRef.current.left > 0) {
+                console.warn("Left Device Watchdog Triggered: No data for 30s. Disconnecting.");
                 disconnectBle('left');
             }
 
             // Right Watchdog
-            if (rightDevice && now - lastRightTime > 10000 && lastRightTime > 0) {
-                console.warn("Right Device Watchdog Triggered: No data for 10s. Disconnecting.");
+            if (rightDevice && now - lastDataTimeRef.current.right > 30000 && lastDataTimeRef.current.right > 0) {
+                console.warn("Right Device Watchdog Triggered: No data for 30s. Disconnecting.");
                 disconnectBle('right');
             }
         };
 
         const interval = setInterval(checkWatchdog, 1000);
         return () => clearInterval(interval);
-    }, [leftDevice, rightDevice, lastLeftTime, lastRightTime]);
+    }, [leftDevice, rightDevice]); // Removed timestamp dependencies to prevent re-running interval
 
     const disconnectBle = (side: 'left' | 'right') => {
         console.log(`Disconnecting ${side} device...`);
