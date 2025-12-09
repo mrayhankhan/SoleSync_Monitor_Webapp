@@ -16,9 +16,10 @@ interface StatusBadgeProps {
     onDisconnect: () => void;
     isBleConnected: boolean;
     isSimulating: boolean;
+    hz: number;
 }
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, onDisconnect, isBleConnected, isSimulating }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, onDisconnect, isBleConnected, isSimulating, hz }) => {
     let statusText = 'Disconnected';
     let statusColor = 'bg-red-900/30 text-red-400 border-red-800';
     let dotColor = 'bg-red-500';
@@ -38,6 +39,11 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ label, connected, onConnect, 
             <div className={`flex items-center px-3 py-1 rounded-full text-sm border ${statusColor}`}>
                 <div className={`w-2 h-2 rounded-full mr-2 ${dotColor} animate-pulse`} />
                 {label}: {statusText}
+                {isBleConnected && (
+                    <span className={`ml-2 text-xs font-mono ${hz < 30 ? 'text-red-400' : hz < 45 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        ({hz} Hz)
+                    </span>
+                )}
             </div>
             {!isBleConnected && (
                 <button
@@ -71,6 +77,12 @@ export const Dashboard: React.FC = () => {
     const shouldReconnectRef = useRef<{ left: boolean, right: boolean }>({ left: false, right: false });
     // Wake Lock Ref
     const wakeLockRef = useRef<any>(null);
+
+    // Packet Rate Monitoring
+    const [leftHz, setLeftHz] = useState(0);
+    const [rightHz, setRightHz] = useState(0);
+    const packetCountRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
+
     const [now, setNow] = useState<number>(Date.now());
 
     const [isSimulating, setIsSimulating] = useState(false);
@@ -323,8 +335,13 @@ export const Dashboard: React.FC = () => {
             setSamples(prev => [...prev, sample].slice(-100));
 
             // Update Ref (Immediate, for logic)
-            if (side === 'left') lastDataTimeRef.current.left = Date.now();
-            else lastDataTimeRef.current.right = Date.now();
+            if (side === 'left') {
+                lastDataTimeRef.current.left = Date.now();
+                packetCountRef.current.left++;
+            } else {
+                lastDataTimeRef.current.right = Date.now();
+                packetCountRef.current.right++;
+            }
 
             // Update State (Throttled/Batched, for UI)
             if (side === 'left') setLastLeftTime(Date.now());
@@ -412,6 +429,16 @@ export const Dashboard: React.FC = () => {
         const interval = setInterval(checkWatchdog, 1000);
         return () => clearInterval(interval);
     }, [leftDevice, rightDevice]); // Removed timestamp dependencies to prevent re-running interval
+
+    // Calculate Hz every second
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setLeftHz(packetCountRef.current.left);
+            setRightHz(packetCountRef.current.right);
+            packetCountRef.current = { left: 0, right: 0 };
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Wake Lock Management
     const requestWakeLock = async () => {
@@ -715,6 +742,7 @@ export const Dashboard: React.FC = () => {
                         onDisconnect={() => disconnectBle('left')}
                         isBleConnected={!!leftDevice}
                         isSimulating={isSimulating}
+                        hz={leftHz}
                     />
                     <StatusBadge
                         label="Right Shoe"
@@ -723,6 +751,7 @@ export const Dashboard: React.FC = () => {
                         onDisconnect={() => disconnectBle('right')}
                         isBleConnected={!!rightDevice}
                         isSimulating={isSimulating}
+                        hz={rightHz}
                     />
 
                     <div className="h-6 w-px bg-gray-700 mx-2"></div>
