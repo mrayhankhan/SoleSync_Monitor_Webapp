@@ -69,6 +69,8 @@ export const Dashboard: React.FC = () => {
     const lastDataTimeRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
     // Ref to track if disconnection was intentional (for auto-reconnect)
     const shouldReconnectRef = useRef<{ left: boolean, right: boolean }>({ left: false, right: false });
+    // Wake Lock Ref
+    const wakeLockRef = useRef<any>(null);
     const [now, setNow] = useState<number>(Date.now());
 
     const [isSimulating, setIsSimulating] = useState(false);
@@ -410,6 +412,40 @@ export const Dashboard: React.FC = () => {
         const interval = setInterval(checkWatchdog, 1000);
         return () => clearInterval(interval);
     }, [leftDevice, rightDevice]); // Removed timestamp dependencies to prevent re-running interval
+
+    // Wake Lock Management
+    const requestWakeLock = async () => {
+        try {
+            if ('wakeLock' in navigator && !wakeLockRef.current) {
+                // @ts-ignore
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+                console.log('Screen Wake Lock active');
+            }
+        } catch (err) {
+            console.error('Wake Lock failed:', err);
+        }
+    };
+
+    const releaseWakeLock = async () => {
+        if (wakeLockRef.current) {
+            try {
+                await wakeLockRef.current.release();
+                wakeLockRef.current = null;
+                console.log('Screen Wake Lock released');
+            } catch (err) {
+                console.error('Wake Lock release failed:', err);
+            }
+        }
+    };
+
+    // Manage Wake Lock based on connection
+    useEffect(() => {
+        if (leftDevice || rightDevice) {
+            requestWakeLock();
+        } else {
+            releaseWakeLock();
+        }
+    }, [leftDevice, rightDevice]);
 
     const disconnectBle = (side: 'left' | 'right') => {
         console.log(`Disconnecting ${side} device...`);
