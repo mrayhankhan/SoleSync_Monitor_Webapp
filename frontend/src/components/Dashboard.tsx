@@ -67,6 +67,8 @@ export const Dashboard: React.FC = () => {
     const [lastRightTime, setLastRightTime] = useState<number>(0);
     // Refs for stable timestamp tracking (avoids stale closures and re-renders)
     const lastDataTimeRef = useRef<{ left: number, right: number }>({ left: 0, right: 0 });
+    // Ref to track if disconnection was intentional (for auto-reconnect)
+    const shouldReconnectRef = useRef<{ left: boolean, right: boolean }>({ left: false, right: false });
     const [now, setNow] = useState<number>(Date.now());
 
     const [isSimulating, setIsSimulating] = useState(false);
@@ -412,6 +414,9 @@ export const Dashboard: React.FC = () => {
     const disconnectBle = (side: 'left' | 'right') => {
         console.log(`Disconnecting ${side} device...`);
 
+        // Disable Auto-Reconnect
+        shouldReconnectRef.current[side] = false;
+
         // Clear Mock Interval
         if (mockIntervals.current[side]) {
             clearInterval(mockIntervals.current[side]);
@@ -503,6 +508,9 @@ export const Dashboard: React.FC = () => {
                 filters: [{ services: [SERVICE_UUID] }]
             });
 
+            // Enable Auto-Reconnect
+            shouldReconnectRef.current[side] = true;
+
             // Use robust connection with retry
             const server = await connectWithRetry(device);
             const service = await server?.getPrimaryService(SERVICE_UUID);
@@ -517,9 +525,47 @@ export const Dashboard: React.FC = () => {
             if (side === 'left') setLeftDevice(device);
             else setRightDevice(device);
 
-            device.addEventListener('gattserverdisconnected', () => {
+            device.addEventListener('gattserverdisconnected', async () => {
+                console.warn(`${side} device disconnected!`);
                 if (side === 'left') setLeftDevice(null);
                 else setRightDevice(null);
+
+                // Auto-Reconnect Logic
+                if (shouldReconnectRef.current[side]) {
+                    console.log(`Attempting auto-reconnect for ${side}...`);
+                    try {
+                        // We can't reuse the 'device' object easily for a full re-scan flow, 
+                        // but we can try to reconnect to the *same* device object if it's still valid.
+                        // However, Web Bluetooth usually requires a user gesture for the initial requestDevice.
+                        // Reconnecting to an *already paired* device object typically works without gesture 
+                        // IF the device object is still in memory.
+
+                        // Recursive call might be dangerous if not careful, but here we just want to re-establish GATT.
+                        // We can't call 'connectBle' again because that calls 'requestDevice' which needs a gesture.
+                        // We need to just call 'connectWithRetry' on the EXISTING device object.
+
+                        await connectWithRetry(device);
+
+                        // Re-subscribe
+                        const server = await device.gatt?.connect();
+                        const service = await server?.getPrimaryService(SERVICE_UUID);
+                        const char = await service?.getCharacteristic(CHARACTERISTIC_UUID);
+                        await char?.startNotifications();
+                        char?.addEventListener('characteristicvaluechanged', (e: any) => {
+                            const value = e.target.value;
+                            handleBleData(value, side, device.id);
+                        });
+
+                        if (side === 'left') setLeftDevice(device);
+                        else setRightDevice(device);
+                        console.log(`Auto-reconnected ${side} successfully!`);
+
+                    } catch (e) {
+                        console.error(`Auto-reconnect failed for ${side}:`, e);
+                        // If it fails, we might want to try again later, but for now let's stop to avoid infinite loops.
+                        // Or maybe set a timeout to try again in 5s?
+                    }
+                }
             });
 
         } catch (e) {
