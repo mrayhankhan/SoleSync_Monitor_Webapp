@@ -1,5 +1,5 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceDot, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceDot, CartesianGrid } from 'recharts';
 import { type Sample, type StepEvent } from '../../utils/analyticsHelper';
 
 interface StepsTimelineProps {
@@ -8,28 +8,36 @@ interface StepsTimelineProps {
 }
 
 export const StepsTimeline: React.FC<StepsTimelineProps> = ({ samples, steps }) => {
-    const data = samples.map(s => ({
-        t: new Date(s.time).getTime(),
-        fsrSum: s.fsr.reduce((a, b) => a + b, 0) + (s.heelraw || 0),
+    // Downsample for performance and readability (1 in 5 samples)
+    const startTime = samples.length > 0 ? new Date(samples[0].time).getTime() : 0;
+    const chartData = samples.filter((_, i) => i % 5 === 0).map(s => ({
+        time: (new Date(s.time).getTime() - startTime) / 1000,
+        force: s.fsr.reduce((a, b) => a + b, 0) + (s.heelraw || 0)
     }));
 
     return (
         <div className="bg-gray-800 rounded-xl p-4 h-64 border border-gray-700">
             <h3 className="text-sm font-semibold mb-2 text-gray-300">FSR Timeline with Steps</h3>
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
+                <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis
-                        dataKey="t"
-                        tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        stroke="#9CA3AF"
-                        tick={{ fontSize: 10 }}
+                        dataKey="time"
+                        stroke="#666"
+                        tick={{ fill: '#666' }}
+                        unit="s"
                     />
-                    <YAxis stroke="#9CA3AF" tick={{ fontSize: 10 }} />
+                    <YAxis
+                        stroke="#666"
+                        tick={{ fill: '#666' }}
+                        label={{ value: 'Force (raw)', angle: -90, position: 'insideLeft', fill: '#666' }}
+                    />
                     <Tooltip
-                        contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }}
-                        labelFormatter={v => new Date(v).toLocaleTimeString()}
+                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid #333' }}
+                        itemStyle={{ color: '#fff' }}
+                        labelFormatter={(v) => `${Number(v).toFixed(1)} s`}
                     />
-                    <Line type="monotone" dataKey="fsrSum" stroke="#8B5CF6" dot={false} strokeWidth={2} />
+                    <Line type="monotone" dataKey="force" stroke="#3b82f6" dot={false} strokeWidth={2} />
                     {steps.map((s, i) => (
                         <ReferenceDot
                             key={i}
