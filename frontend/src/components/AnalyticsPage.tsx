@@ -11,6 +11,8 @@ import { OrientationChart } from './analytics/OrientationChart';
 import { InsightsStrip } from './analytics/InsightsStrip';
 import { AdvancedMetricsCard } from './analytics/AdvancedMetricsCard';
 import { StepLengthChart } from './analytics/StepLengthChart';
+import { ImuMetricsCard } from './analytics/ImuMetricsCard';
+import { RawImuChart } from './analytics/RawImuChart';
 
 export function AnalyticsPage() {
     const { sessionId } = useParams();
@@ -120,6 +122,7 @@ export function AnalyticsPage() {
                             <BasicSummaryCard basic={currentMetrics.basic} />
                             <LoadDonuts load={currentMetrics.load} />
                             <AdvancedMetricsCard metrics={currentMetrics} />
+                            <ImuMetricsCard metrics={currentMetrics} />
                             <InsightsStrip insights={currentMetrics.insights} />
                             <OrientationSummary ori={currentMetrics.orientation} />
                         </div>
@@ -133,6 +136,7 @@ export function AnalyticsPage() {
                                 </div>
                             </div>
                             <StepLengthChart metrics={currentMetrics} />
+                            <RawImuChart samples={currentSamples} />
                             <OrientationChart samples={currentSamples} />
                         </div>
                     </div>

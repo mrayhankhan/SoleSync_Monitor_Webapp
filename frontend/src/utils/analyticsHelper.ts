@@ -67,6 +67,12 @@ export type AnalyticsMetrics = {
         contactTimeCV: number; // Coefficient of Variation %
         peakForceCV: number;
     };
+    // IMU Specific
+    imu: {
+        avgPeakShock: number; // g
+        avgSwingSpeed: number; // deg/s
+        peakShockCV: number;
+    };
 };
 
 const CONTACT_THRESH = 50; // tune this
@@ -451,25 +457,64 @@ export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
 
     const poseSamples = processKinematics(samples);
 
-    // Compute Step Lengths
+    // Compute Step Lengths & IMU Metrics
     const stepLengths: number[] = [];
     const peakForces: number[] = [];
+    const peakShocks: number[] = [];
+    const peakSwings: number[] = [];
 
     steps.forEach(step => {
         // Find samples for this step
         const stepData = poseSamples.filter(s => s.timestamp >= step.startTime && s.timestamp <= step.endTime);
+        // Also look at swing phase (between steps) for swing speed?
+        // For simplicity, let's look at the step cycle (start to end) + maybe some buffer?
+        // Actually, "Swing Speed" happens usually BEFORE contact (or after toe-off).
+        // Let's just look at the max gyro magnitude during the step event for now (impact/stance), 
+        // but real swing speed is during swing.
+        // Let's look at the whole session samples for peaks if we can segment swings.
+        // For now, let's compute "Peak Shock" (Impact) during the step (Stance).
+
         if (stepData.length > 0) {
             const len = estimateStepLength(stepData);
             stepLengths.push(len);
 
-            // Peak Force for CV
+            // Peak Force
             const maxF = Math.max(...stepData.map(s => s.fsr.reduce((a, b) => a + b, 0) + (s.heelraw || 0)));
             peakForces.push(maxF);
+
+            // Peak Shock (Resultant Accel)
+            const maxShock = Math.max(...stepData.map(s => Math.sqrt(s.accel.x ** 2 + s.accel.y ** 2 + s.accel.z ** 2)));
+            peakShocks.push(maxShock);
         }
     });
 
+    // Compute Swing Speed (Max Gyro) for the whole session or per step?
+    // Let's do it per step cycle. We need to find the "Swing" before this step.
+    // Or just iterate all samples and find peaks?
+    // Let's just compute average peak gyro magnitude across the whole file as a proxy for "Intensity".
+    // Better: Find max gyro between steps.
+
+    for (let i = 0; i < steps.length - 1; i++) {
+        const toeOff = steps[i].endTime;
+        const heelStrike = steps[i + 1].startTime;
+        const swingSamples = samples.filter(s => s.timestamp > toeOff && s.timestamp < heelStrike);
+
+        if (swingSamples.length > 0) {
+            const maxSwing = Math.max(...swingSamples.map(s => Math.sqrt(s.gyro.x ** 2 + s.gyro.y ** 2 + s.gyro.z ** 2)));
+            peakSwings.push(maxSwing);
+        }
+    }
+
     const avgStepLength = stepLengths.length > 0
         ? stepLengths.reduce((a, b) => a + b, 0) / stepLengths.length
+        : 0;
+
+    const avgPeakShock = peakShocks.length > 0
+        ? peakShocks.reduce((a, b) => a + b, 0) / peakShocks.length
+        : 0;
+
+    const avgSwingSpeed = peakSwings.length > 0
+        ? peakSwings.reduce((a, b) => a + b, 0) / peakSwings.length
         : 0;
 
     // Gait Speed (m/s) = Step Length * Cadence / 60
@@ -481,6 +526,12 @@ export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
         peakForceCV: cv(peakForces)
     };
 
+    const imu = {
+        avgPeakShock,
+        avgSwingSpeed,
+        peakShockCV: cv(peakShocks)
+    };
+
     return {
         basic,
         load,
@@ -490,7 +541,8 @@ export function computeAnalytics(samples: Sample[]): AnalyticsMetrics {
         gaitSpeed,
         avgStepLength,
         stepLengths,
-        variability
+        variability,
+        imu
     };
 }
 
