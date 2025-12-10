@@ -260,7 +260,14 @@ export const Dashboard: React.FC = () => {
             // Apply Axis Mapping
             const mapping = axisMappingsRef.current[side];
             const acc = applyAxisMapping({ x: ax, y: ay, z: az }, mapping);
-            const gyro = applyAxisMapping({ x: gx, y: gy, z: gz }, mapping);
+            let gyro = applyAxisMapping({ x: gx, y: gy, z: gz }, mapping);
+
+            // Gyro Deadband (Software)
+            // If rotation is very small (noise), ignore it to prevent drift
+            const GYRO_DEADBAND = 2.0; // deg/s (Increase if drift persists)
+            if (Math.abs(gyro.x) < GYRO_DEADBAND) gyro.x = 0;
+            if (Math.abs(gyro.y) < GYRO_DEADBAND) gyro.y = 0;
+            if (Math.abs(gyro.z) < GYRO_DEADBAND) gyro.z = 0;
 
             // Update AHRS
             const filter = side === 'left' ? leftMadgwickRef.current : rightMadgwickRef.current;
